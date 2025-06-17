@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dashy</title>
+    <link rel="stylesheet" href="/leaflet/leaflet.css" />
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="https://kit.fontawesome.com/5cda090907.js" crossorigin="anonymous"></script>
+</head>
+<body>
+<div class="container">
+    <div id="map"></div>
+    <div id="app-panel">
+        <div class="app-panel-header">
+            <h1 id="app-title">Dashy</h1>
+            <button id="add-new-button" class="button button-primary hidden" title="Add New Item"><i class="fas fa-plus"></i> <span>Add New</span></button>
+        </div>
+        <div id="app-panel-content">
+        </div>
+        <footer id="bottom-nav">
+            <button class="nav-btn" data-type="dashboard" title="Dashboard"><i class="fas fa-home"></i></button>
+            <button class="nav-btn" data-type="places" title="Places"><i class="fas fa-map-marker-alt"></i></button>
+            <button class="nav-btn" data-type="people" title="People"><i class="fas fa-user"></i></button>
+            <button class="nav-btn" data-type="interactions" title="Interactions"><i class="fas fa-comments"></i></button>
+            <button class="nav-btn" data-type="custom_objects" title="Custom Objects"><i class="fas fa-star"></i></button>
+            <button class="nav-btn" data-type="images" title="Images"><i class="fas fa-image"></i></button>
+            <button class="nav-btn" data-type="other_files" title="Files"><i class="fas fa-file-alt"></i></button>
+        </footer>
+    </div>
+</div>
+
+<div id="modal-overlay" class="hidden">
+    <div id="modal-content"></div>
+</div>
+
+<script type="importmap">
+    {
+        "imports": {
+            "leaflet": "/leaflet/leaflet.js"
+        }
+    }
+</script>
+<script type="module" src="/js/main.js"></script>
+</body>
+</html>

@@ -311,9 +311,12 @@ async function handleSearchItemClick(li) {
 function handleCustomTypeClick(li) {
     const container = li.closest('.custom-type-search-container');
     const input = container.querySelector('.custom-type-search-input');
-    input.value = li.dataset.typeName;
-    li.parentElement.innerHTML = '';
-    li.parentElement.style.display = 'none';
+    const resultsList = li.parentElement; // Get a reference to the parent (the <ul>)
+
+    input.value = li.dataset.typeName; // Set the input value
+
+    resultsList.innerHTML = ''; // Clear the list
+    resultsList.style.display = 'none'; // Hide the list
 }
 
 async function handleUnlinkClick(target) {

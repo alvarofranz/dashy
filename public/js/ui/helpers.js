@@ -11,7 +11,7 @@ export const getIconForTable = (table) => {
         interactions: 'fa-shuffle',
         custom_objects: 'fa-tag',
         images: 'fa-image',
-        other_files: 'fa-file-alt',
+        files: 'fa-file-alt',
         todos: 'fa-check-square',
         dashboard: 'fa-home'
     };
@@ -22,7 +22,7 @@ export const formatObjectType = (type) => {
     if (!type) return '';
     const specialCases = {
         'custom_objects': 'Custom Objects',
-        'other_files': 'Files',
+        'files': 'Files',
         'place': 'Place',
         'person': 'Person',
         'interaction': 'Interaction',

@@ -62,7 +62,7 @@ const getFullObjectDetails = async (table, id) => {
         interactions: `SELECT id, title, 'interactions' as "table" FROM interactions WHERE id = ?`,
         custom_objects: `SELECT id, title, object_type, 'custom_objects' as "table" FROM custom_objects WHERE id = ?`,
         images: `SELECT id, title, 'images' as "table", file_path FROM images WHERE id = ?`,
-        other_files: `SELECT id, title, 'other_files' as "table", file_path FROM other_files WHERE id = ?`,
+        files: `SELECT id, title, 'files' as "table", file_path FROM files WHERE id = ?`,
         todos: `SELECT id, title, 'todos' as "table", status FROM todos WHERE id = ?`,
     };
 
@@ -225,7 +225,7 @@ router.get('/recent', async (req, res) => {
                     UNION ALL SELECT id, title, 'interactions' as "table", created_at, null as object_type, null as file_path, -1 as status FROM interactions
                     UNION ALL SELECT id, title, 'custom_objects' as "table", created_at, object_type, null as file_path, -1 as status FROM custom_objects
                     UNION ALL SELECT id, title, 'images' as "table", created_at, null as object_type, file_path, -1 as status FROM images
-                    UNION ALL SELECT id, title, 'other_files' as "table", created_at, null as object_type, file_path, -1 as status FROM other_files
+                    UNION ALL SELECT id, title, 'files' as "table", created_at, null as object_type, file_path, -1 as status FROM files
                     UNION ALL SELECT id, title, 'todos' as "table", created_at, null as object_type, null as file_path, status FROM todos
                 ) as union_sub
             ) as sort_sub
@@ -253,7 +253,7 @@ router.get('/bootstrap', async (req, res) => {
             (SELECT COUNT(id) FROM interactions) +
             (SELECT COUNT(id) FROM custom_objects) +
             (SELECT COUNT(id) FROM images) +
-            (SELECT COUNT(id) FROM other_files) +
+            (SELECT COUNT(id) FROM files) +
             (SELECT COUNT(id) FROM todos) as count`);
         res.json({ places, hasObjects: objectCountResult.count > 0 });
     } catch (e) {
@@ -291,7 +291,7 @@ router.get('/objects/:table', async (req, res) => {
         } else {
             const columnsToSelect = ['id', 'title', 'created_at'];
             if (table === 'custom_objects') columnsToSelect.push('object_type');
-            if (table === 'images' || table === 'other_files') columnsToSelect.push('file_path');
+            if (table === 'images' || table === 'files') columnsToSelect.push('file_path');
             items = await db.all(`SELECT ${columnsToSelect.join(', ')} FROM ${table} ORDER BY created_at DESC LIMIT ? OFFSET ?`, limit, offset);
         }
 
@@ -330,7 +330,7 @@ router.get('/search', async (req, res) => {
             UNION ALL SELECT id, title, 'interactions' as "table" FROM interactions WHERE title LIKE ?
             UNION ALL SELECT id, title, 'custom_objects' as "table" FROM custom_objects WHERE title LIKE ?
             UNION ALL SELECT id, title, 'images' as "table" FROM images WHERE title LIKE ?
-            UNION ALL SELECT id, title, 'other_files' as "table" FROM other_files WHERE title LIKE ?
+            UNION ALL SELECT id, title, 'files' as "table" FROM files WHERE title LIKE ?
             UNION ALL SELECT id, title, 'todos' as "table" FROM todos WHERE title LIKE ?
             ORDER BY title LIMIT 10
         `, query, query, query, query, query, query, query);
@@ -417,7 +417,7 @@ router.post('/object/other_file', upload.array('files'), async (req, res) => {
         const links = req.body.links ? JSON.parse(req.body.links) : [];
         const db = getDb();
         const createdFiles = [];
-        const targetDir = path.resolve('./data/other_files');
+        const targetDir = path.resolve('./data/files');
         if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
 
         for (const file of req.files) {
@@ -427,9 +427,9 @@ router.post('/object/other_file', upload.array('files'), async (req, res) => {
             fs.renameSync(tempPath, finalPath);
 
             const id = nanoid();
-            await db.run('INSERT INTO other_files (id, title, file_path) VALUES (?, ?, ?)', id, file.originalname, `/other_files/${finalFilename}`);
-            await saveLinks(id, 'other_files', links);
-            createdFiles.push(await getFullObjectDetails('other_files', id));
+            await db.run('INSERT INTO files (id, title, file_path) VALUES (?, ?, ?)', id, file.originalname, `/files/${finalFilename}`);
+            await saveLinks(id, 'files', links);
+            createdFiles.push(await getFullObjectDetails('files', id));
         }
         console.log(`[API] Successfully created ${createdFiles.length} file objects.`);
         res.status(201).json(createdFiles);
@@ -541,7 +541,7 @@ router.delete('/object/:table/:id', async (req, res) => {
         const { table, id } = req.params;
         console.log(`[API] Deleting object ${table}:${id}`);
         const db = getDb();
-        if (table === 'images' || table === 'other_files') {
+        if (table === 'images' || table === 'files') {
             const fileObject = await db.get(`SELECT file_path FROM ${table} WHERE id = ?`, id);
             if (fileObject) {
                 const filePath = path.resolve(`./data${fileObject.file_path}`);

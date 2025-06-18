@@ -34,7 +34,7 @@ export async function initDatabase() {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
-        CREATE TABLE IF NOT EXISTS other_files (
+        CREATE TABLE IF NOT EXISTS files (
             id TEXT PRIMARY KEY,
             title TEXT NOT NULL,
             file_path TEXT NOT NULL,

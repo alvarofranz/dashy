@@ -10,7 +10,7 @@ const listToFormTypeMap = {
     interactions: 'interaction',
     custom_objects: 'custom_object',
     images: 'image',
-    other_files: 'other_file',
+    files: 'other_file',
     todos: 'todo',
     recent: 'place' // Default for dashboard 'Add New'
 };
@@ -162,14 +162,14 @@ export async function renderObject(table, id) {
 
         // --- Start: Grouped Links Rendering ---
         const links = object.links;
-        const groupedLinks = { todos: [], images: [], other_files: [], people: [], interactions: [], custom_objects: [], places: [] };
+        const groupedLinks = { todos: [], images: [], files: [], people: [], interactions: [], custom_objects: [], places: [] };
         links.forEach(link => {
             if (groupedLinks[link.table]) {
                 groupedLinks[link.table].push(link);
             }
         });
 
-        const sectionOrder = ['todos', 'images', 'other_files', 'people', 'interactions', 'custom_objects', 'places'];
+        const sectionOrder = ['todos', 'images', 'files', 'people', 'interactions', 'custom_objects', 'places'];
         let groupedLinksHtml = '';
 
         sectionOrder.forEach(sectionKey => {

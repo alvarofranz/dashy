@@ -117,7 +117,7 @@ async function handleGlobalSubmit(e) {
             let expectedTable = type === 'person' ? 'people' : `${type}s`;
             if (['image', 'other_file', 'custom_object'].includes(type)) expectedTable = `${type}s`;
             if (type === 'custom_object') expectedTable = 'custom_objects';
-            if (type === 'other_file') expectedTable = 'other_files';
+            if (type === 'other_file') expectedTable = 'files';
 
 
             const primaryItem = createdItems.find(item => item.table === expectedTable) || createdItems[0];
@@ -142,7 +142,7 @@ async function handleGlobalSubmit(e) {
             let expectedTable = `${type}s`;
             if (type === 'person') expectedTable = 'people';
             if (type === 'custom_object') expectedTable = 'custom_objects';
-            if (type === 'other_file') expectedTable = 'other_files';
+            if (type === 'other_file') expectedTable = 'files';
 
             const allPrimaryItems = createdItems.filter(item => item.table === expectedTable);
 

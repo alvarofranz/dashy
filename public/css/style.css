@@ -82,7 +82,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent-primary);
     align-items: center;
     padding-bottom: 1rem;
     margin-top: 1.5rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
     border-bottom: none;
 }
 .list-view-header h2 {
@@ -102,12 +102,11 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent-primary);
 .object-view-header h2 .object-type-display { display: block; font-size: 0.875rem; color: var(--text-secondary); font-weight: 500; margin-top: 0.25rem; }
 
 .image-preview {
-    width: 100%;
-    height: auto;
-    max-height: none;
-    object-fit: contain;
+    display: block;
+    max-width: 100%;
+    max-height: 65vh;
     border-radius: var(--radius-md);
-    margin-bottom: 1.5rem;
+    margin: 0 auto 1.5rem auto;
     background-color: var(--bg-primary);
 }
 
@@ -133,7 +132,10 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent-primary);
 .items-list-view { list-style: none; }
 .links-list { list-style: none; padding: 0; }
 .links-list li, .items-list-view li { background-color: var(--bg-secondary); padding: 0.6rem 1rem; margin-bottom: 0.5rem; border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: all 0.2s ease; border: 1px solid var(--border-color); position: relative; }
-.links-list li:hover, .items-list-view li:hover { border-color: var(--accent-primary); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.links-list li:hover, .items-list-view li:hover {
+    border-color: var(--accent-primary);
+    box-shadow: var(--shadow-md);
+}
 .link-title, .item-title { display: flex; align-items: center; gap: 0.75rem; font-weight: 500; flex-grow: 1; min-width: 0; }
 .link-title span, .item-title span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item-title.completed { text-decoration: line-through; color: var(--text-tertiary); }
@@ -201,15 +203,15 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent-primary);
     flex-wrap: wrap;
     gap: 0.5rem;
     margin-bottom: 1.5rem;
-    padding-bottom: 1.5rem;
-    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0;
+    border-bottom: none;
 }
 .filter-tag {
     background-color: var(--bg-tertiary);
     color: var(--text-secondary);
     border: 1px solid var(--border-color);
     padding: 0.25rem 0.75rem;
-    border-radius: 999px;
+    border-radius: var(--radius-md);
     font-size: 0.8rem;
     font-weight: 500;
     cursor: pointer;

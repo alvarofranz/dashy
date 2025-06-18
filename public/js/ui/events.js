@@ -1,7 +1,7 @@
 import * as api from '../api.js';
 import { contentPanel, debounce, getIconForTable, closeModal, formatObjectType } from './helpers.js';
 import { renderAddForm, addLinkToForm, getSelectedLinks, renderOnTheFlyForm } from './forms.js';
-import { renderObject, renderListView, loadMoreItems, renderDashboardView } from './main_view.js';
+import { renderObject, renderListView, loadMoreItems, renderDashboardView, loadFilteredItems, toggleCustomObjectFilter } from './main_view.js';
 
 export function initializeEventListeners() {
     document.body.addEventListener('click', handleGlobalClick);
@@ -42,6 +42,16 @@ async function handleGlobalClick(e) {
         await deleteKeyValueRow(target.closest('li'));
         return;
     }
+    if (target.closest('.todo-status-button')) {
+        const button = target.closest('.todo-status-button');
+        const id = button.dataset.id;
+        const currentStatus = parseInt(button.dataset.currentStatus, 10);
+        const newStatus = currentStatus === 1 ? 0 : 1;
+        await api.updateObject('todos', id, 'status', newStatus);
+        renderObject('todos', id); // Re-render the view to show the change
+        return;
+    }
+
 
     // --- Modal-specific closing actions ---
     if (window.dashy.appState.isModalOpen) {
@@ -69,6 +79,13 @@ async function handleGlobalClick(e) {
     }
 
     if (target.closest('#app-panel-content')) {
+        if (target.closest('.filter-tag')) {
+            const tag = target.closest('.filter-tag');
+            tag.classList.toggle('active');
+            toggleCustomObjectFilter(tag.dataset.type);
+            loadFilteredItems('custom_objects');
+            return;
+        }
         if (target.closest('.link-item:not(.image-grid .link-item)')) {
             if (!target.closest('.unlink-btn')) renderObject(target.closest('.link-item').dataset.table, target.closest('.link-item').dataset.id);
         }
@@ -207,6 +224,28 @@ async function handleFocusIn(e) {
 }
 
 async function handleContentPanelInput(e) {
+    if (e.target.matches('#dashboard-search-input')) {
+        const input = e.target;
+        const resultsList = document.getElementById('dashboard-search-results');
+        const term = input.value.trim();
+
+        if (term.length < 3) {
+            resultsList.innerHTML = '';
+            resultsList.style.display = 'none';
+            return;
+        }
+
+        const results = await api.searchObjects(term, 25);
+        resultsList.style.display = 'block';
+        if (results.length > 0) {
+            resultsList.innerHTML = results
+                .map(r => `<li data-id="${r.id}" data-table="${r.table}" data-title="${r.title}"><i class="fas ${getIconForTable(r.table)}"></i> ${r.title}</li>`).join('');
+        } else {
+            resultsList.innerHTML = '<li style="padding: 0.75rem; color: var(--text-tertiary);">No results found</li>';
+        }
+        return;
+    }
+
     if (e.target.matches('.link-search-input')) {
         const searchTerm = e.target.value;
         const resultsList = e.target.nextElementSibling;
@@ -250,6 +289,15 @@ function handleKeyDown(e) {
 }
 
 function handleFocusOut(e) {
+    if (e.target.matches('#dashboard-search-input')) {
+        setTimeout(() => {
+            const resultsList = document.getElementById('dashboard-search-results');
+            if (resultsList && !resultsList.matches(':hover')) {
+                resultsList.style.display = 'none';
+            }
+        }, 150);
+        return;
+    }
     if (e.target.matches('.inline-edit-input')) {
         saveInlineEdit(e.target);
     }
@@ -299,7 +347,15 @@ function handleMapClickForForm(e) {
 }
 
 async function handleSearchItemClick(li) {
-    // This function handles both link search and custom type search results
+    if (li.closest('#dashboard-search-results')) {
+        renderObject(li.dataset.table, li.dataset.id);
+        const searchInput = document.getElementById('dashboard-search-input');
+        const resultsList = document.getElementById('dashboard-search-results');
+        if (searchInput) searchInput.value = '';
+        if (resultsList) resultsList.style.display = 'none';
+        return;
+    }
+
     if (li.closest('.custom-type-results')) {
         handleCustomTypeClick(li);
         return;

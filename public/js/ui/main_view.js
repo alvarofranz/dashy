@@ -3,6 +3,15 @@ import { contentPanel, getIconForTable, formatObjectType, highlightMarker, clear
 import { renderAddLinkForm } from './forms.js';
 
 let isLoadingMore = false;
+let activeCustomObjectFilters = new Set();
+
+export function toggleCustomObjectFilter(type) {
+    if (activeCustomObjectFilters.has(type)) {
+        activeCustomObjectFilters.delete(type);
+    } else {
+        activeCustomObjectFilters.add(type);
+    }
+}
 
 const listToFormTypeMap = {
     places: 'place',
@@ -32,37 +41,94 @@ export async function renderDashboardView() {
     renderListView('recent');
 }
 
-export async function renderListView(type, offset = 0) {
+export async function renderListView(type) {
     console.log(`Rendering list view for: ${type}`);
+    if (type !== 'custom_objects') {
+        activeCustomObjectFilters.clear();
+    }
     window.dashy.appState.currentView = { type: 'list', listType: type, offset: 0, hasMore: true };
 
     const addNewButton = document.getElementById('add-new-button');
     const formType = listToFormTypeMap[type] || type;
     addNewButton.dataset.type = formType;
-    addNewButton.querySelector('span').textContent = `Add New ${formatObjectType(formType)}`;
+    addNewButton.querySelector('span').textContent = `Add ${formatObjectType(formType)}`;
     addNewButton.classList.remove('hidden');
 
     clearHighlight();
 
     const listTitle = (type === 'recent') ? 'Recent Items' : formatObjectType(type);
-    contentPanel.innerHTML = `<div class="list-view-header"><h2><i class="fas ${getIconForTable(type)}"></i> ${listTitle}</h2></div><ul class="items-list-view"></ul><div class="loader">Loading...</div>`;
+    const dashboardSearchHtml = type === 'recent' ? `
+        <div class="dashboard-search-container">
+            <input type="text" id="dashboard-search-input" placeholder="Search everywhere...">
+            <ul class="search-results-list" id="dashboard-search-results" style="display: none;"></ul>
+        </div>
+    ` : '';
+
+    contentPanel.innerHTML = `<div class="list-view-header"><h2><i class="fas ${getIconForTable(type)}"></i> ${listTitle}</h2>${dashboardSearchHtml}</div><div id="list-view-body"></div>`;
+    const body = contentPanel.querySelector('#list-view-body');
+
+    if (type === 'custom_objects') {
+        const types = await api.getCustomObjectTypes();
+        if (types.length > 0) {
+            const filterTagsHtml = `
+                <div class="filter-tags-container">
+                    ${types.map(t => `<div class="filter-tag ${activeCustomObjectFilters.has(t) ? 'active' : ''}" data-type="${t}">${formatObjectType(t)}</div>`).join('')}
+                </div>`;
+            // Insert filters before the main body container
+            body.insertAdjacentHTML('beforebegin', filterTagsHtml);
+        }
+    }
+
+    body.innerHTML = `<ul class="items-list-view"></ul><div class="loader">Loading...</div>`;
+    await loadFilteredItems(type);
+}
+
+export async function loadFilteredItems(type) {
+    const listViewBody = document.getElementById('list-view-body');
+    if (!listViewBody) return;
+
+    // Reset UI and state for new filter application
+    listViewBody.querySelector('.items-list-view').innerHTML = '';
+    let loader = listViewBody.querySelector('.loader');
+    if (!loader) {
+        loader = document.createElement('div');
+        loader.className = 'loader';
+        listViewBody.appendChild(loader);
+    }
+    loader.textContent = 'Loading...';
+
+    window.dashy.appState.currentView.offset = 0;
+    window.dashy.appState.currentView.hasMore = true;
+    isLoadingMore = false;
+
     try {
-        const items = await api.getObjectsList(type);
+        let filters = {};
+        if (type === 'custom_objects' && activeCustomObjectFilters.size > 0) {
+            filters.types = Array.from(activeCustomObjectFilters);
+        }
+        const items = await api.getObjectsList(type, { filters });
         appendItemsToListView(items, type);
     } catch (error) {
-        console.error(`Error fetching list view for ${type}:`, error);
-        contentPanel.innerHTML = `<p>Error loading items.</p>`;
+        console.error(`Error fetching filtered list view for ${type}:`, error);
+        listViewBody.innerHTML = `<p>Error loading items.</p>`;
     }
 }
 
 export async function loadMoreItems() {
-    const { listType, offset, hasMore } = window.dashy.appState.currentView;
+    const currentView = window.dashy.appState.currentView;
+    if (!currentView || !currentView.type.includes('list')) return;
+
+    const { listType, offset, hasMore } = currentView;
     if (isLoadingMore || !hasMore) return;
 
     isLoadingMore = true;
     const newOffset = offset + 20;
     try {
-        const items = await api.getObjectsList(listType, { offset: newOffset });
+        let filters = {};
+        if (listType === 'custom_objects' && activeCustomObjectFilters.size > 0) {
+            filters.types = Array.from(activeCustomObjectFilters);
+        }
+        const items = await api.getObjectsList(listType, { offset: newOffset, filters });
         if (items.length > 0) {
             appendItemsToListView(items, listType);
             window.dashy.appState.currentView.offset = newOffset;
@@ -142,14 +208,17 @@ export async function renderObject(table, id) {
     console.log(`Rendering object view for: ${table}:${id}`);
     window.dashy.appState.currentView = { type: 'object', table, id };
     document.getElementById('add-new-button').classList.add('hidden');
+    document.querySelectorAll('#bottom-nav .nav-btn').forEach(b => b.classList.remove('active'));
+
+
     clearHighlight();
 
     if (window.dashy.appState.markers[id]) {
         highlightMarker(window.dashy.appState.markers[id]);
         window.dashy.appState.map.flyTo(window.dashy.appState.markers[id].getLatLng(), 15);
     } else {
-        const objectData = await api.getObject(table, id);
-        const linkedPlace = objectData.links.find(l => l.table === 'places');
+        const objectForMap = await api.getObject(table, id);
+        const linkedPlace = objectForMap.links.find(l => l.table === 'places');
         if (linkedPlace && window.dashy.appState.markers[linkedPlace.id]) {
             highlightMarker(window.dashy.appState.markers[linkedPlace.id]);
             window.dashy.appState.map.flyTo(window.dashy.appState.markers[linkedPlace.id].getLatLng(), 15);
@@ -160,7 +229,6 @@ export async function renderObject(table, id) {
     try {
         const object = await api.getObject(table, id);
 
-        // --- Start: Grouped Links Rendering ---
         const links = object.links;
         const groupedLinks = { todos: [], images: [], files: [], people: [], interactions: [], custom_objects: [], places: [] };
         links.forEach(link => {
@@ -188,8 +256,11 @@ export async function renderObject(table, id) {
 
                 let listHtml = incomplete.map(renderTodo).join('');
                 if (complete.length > 0) {
-                    listHtml += `<div class="completed-todos-container hidden">${complete.map(renderTodo).join('')}</div>`;
-                    listHtml += `<button class="show-completed-todos-btn button">${`Display ${complete.length} complete element` + (complete.length > 1 ? 's' : '')}</button>`;
+                    const completedContainerClass = complete.length > 5 ? 'completed-todos-container hidden' : 'completed-todos-container';
+                    listHtml += `<div class="${completedContainerClass}">${complete.map(renderTodo).join('')}</div>`;
+                    if (complete.length > 5) {
+                        listHtml += `<button class="show-completed-todos-btn button">${`Display ${complete.length} complete element` + (complete.length > 1 ? 's' : '')}</button>`;
+                    }
                 }
                 sectionContent = `<ul class="links-list">${listHtml}</ul>`;
 
@@ -219,7 +290,6 @@ export async function renderObject(table, id) {
                 </div>
             `;
         });
-        // --- End: Grouped Links Rendering ---
 
         let detailsHtml = '';
         let headerClass = '';
@@ -232,36 +302,51 @@ export async function renderObject(table, id) {
             detailsHtml += `<div class="detail-item"><i class="fas fa-calendar-alt"></i> ${object.interaction_date}</div>`;
         }
         if (table === 'todos') {
-            headerClass = object.status ? 'completed' : '';
-            detailsHtml += `<div class="detail-item todo-status-toggle">
-                <input type="checkbox" id="todo-status" data-id="${object.id}" ${object.status ? 'checked' : ''}>
-                <label for="todo-status">${object.status ? 'Complete' : 'Incomplete'}</label>
-            </div>`;
+            headerClass = object.status === 1 ? 'completed' : '';
+            const isComplete = object.status === 1;
+            detailsHtml += `
+                <button 
+                    class="button todo-status-button ${isComplete ? 'complete' : 'incomplete'}" 
+                    data-id="${object.id}" 
+                    data-current-status="${object.status}">
+                    <i class="fas ${isComplete ? 'fa-check-circle' : 'fa-times-circle'}"></i>
+                    <span>${isComplete ? 'Complete' : 'Incomplete'}</span>
+                </button>`;
         }
 
         const kvHtml = object.key_values.map(kv => `<li data-kv-id="${kv.id}"><span class="key">${kv.key}</span><span class="value">${kv.value}</span><div class="actions"><button class="edit-kv-button action-button"><i class="fas fa-pencil-alt"></i></button><button class="delete-kv-button action-button"><i class="fas fa-trash"></i></button></div></li>`).join('');
         const objectTypeDisplay = (table === 'custom_objects' && object.object_type) ? `<span class="object-type-display">${formatObjectType(object.object_type)}</span>` : '';
         const imagePreview = (table === 'images') ? `<img src="/data${object.file_path}" class="image-preview" alt="${object.title}">` : '';
 
+        const headerActionsHtml = `
+            <div class="header-actions" style="display:flex; gap:0.5rem;">
+                 ${table === 'files' ? `<a href="/data${object.file_path}" download="${object.title}" class="button"><i class="fas fa-download"></i> Download</a>` : ''}
+                 <button class="delete-object-btn button button-danger" title="Delete Object"><i class="fas fa-trash"></i></button>
+            </div>`;
+
+
         contentPanel.innerHTML = `
             <div class="object-view" data-id="${id}" data-table="${table}">
                 <div class="object-view-header">
                     <h2 class="${headerClass}"><i class="fas ${getIconForTable(table)}"></i> <span class="editable-title">${object.title}</span>${objectTypeDisplay}</h2>
-                    <button class="delete-object-btn button button-danger" title="Delete Object"><i class="fas fa-trash"></i></button>
+                    ${headerActionsHtml}
                 </div>
 
                 ${imagePreview}
-                ${detailsHtml}
-
+                
                 <div class="section">
-                    <div class="section-header"><h3><i class="fas fa-link"></i> Linked Items</h3></div>
-                    ${groupedLinksHtml.length > 0 ? groupedLinksHtml : '<p class="text-secondary">No linked items found.</p>'}
-                    ${renderAddLinkForm()}
-                </div>
-
-                <div class="section">
-                    <div class="section-header"><h3><i class="fas fa-list-ul"></i> Details</h3><button class="add-kv-button button"><i class="fas fa-plus"></i></button></div>
+                    <div class="section-header">
+                        <h3><i class="fas fa-list-ul"></i> Details</h3>
+                        <button class="add-kv-button button"><i class="fas fa-plus"></i></button>
+                    </div>
+                    ${detailsHtml ? `<div style="margin-bottom: 1.5rem;">${detailsHtml}</div>` : ''}
                     <ul class="kv-list">${kvHtml}</ul>
+                </div>
+                
+                ${groupedLinksHtml}
+
+                <div class="section">
+                    ${renderAddLinkForm()}
                 </div>
             </div>`;
     } catch (error) {

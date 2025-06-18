@@ -288,9 +288,21 @@ router.get('/objects/:table', async (req, res) => {
                          CASE WHEN status = 0 THEN created_at END ASC,
                          CASE WHEN status = 1 THEN created_at END DESC
                 LIMIT ? OFFSET ?`, limit, offset);
+        } else if (table === 'custom_objects') {
+            const types = req.query.types ? JSON.parse(req.query.types) : [];
+            let query = `SELECT id, title, created_at, object_type FROM custom_objects`;
+            const params = [];
+
+            if (types.length > 0) {
+                query += ` WHERE object_type IN (${types.map(() => '?').join(',')})`;
+                params.push(...types);
+            }
+
+            query += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+            params.push(limit, offset);
+            items = await db.all(query, ...params);
         } else {
             const columnsToSelect = ['id', 'title', 'created_at'];
-            if (table === 'custom_objects') columnsToSelect.push('object_type');
             if (table === 'images' || table === 'files') columnsToSelect.push('file_path');
             items = await db.all(`SELECT ${columnsToSelect.join(', ')} FROM ${table} ORDER BY created_at DESC LIMIT ? OFFSET ?`, limit, offset);
         }
@@ -320,8 +332,9 @@ router.get('/object/:table/:id', async (req, res) => {
 router.get('/search', async (req, res) => {
     try {
         const { term } = req.query;
-        if (!term) return res.json([]);
-        console.log(`[API] Searching for term: "${term}"`);
+        const limit = parseInt(req.query.limit) || 25;
+        if (!term || term.length < 3) return res.json([]);
+        console.log(`[API] Searching for term: "${term}" with limit ${limit}`);
         const query = `%${term}%`;
         const db = getDb();
         const results = await db.all(`
@@ -332,8 +345,8 @@ router.get('/search', async (req, res) => {
             UNION ALL SELECT id, title, 'images' as "table" FROM images WHERE title LIKE ?
             UNION ALL SELECT id, title, 'files' as "table" FROM files WHERE title LIKE ?
             UNION ALL SELECT id, title, 'todos' as "table" FROM todos WHERE title LIKE ?
-            ORDER BY title LIMIT 10
-        `, query, query, query, query, query, query, query);
+            ORDER BY title LIMIT ?
+        `, query, query, query, query, query, query, query, limit);
         res.json(results);
     } catch (e) {
         console.error('[API Error] /search:', e);
@@ -480,12 +493,13 @@ router.patch('/object/:table/:id', async (req, res) => {
             return res.status(200).json({ success: true, newValue: value });
 
         } else if (field === 'status' && table === 'todos') {
-            if (value === undefined || value === null) {
+            const newStatus = Number(value);
+            if (newStatus === undefined || newStatus === null || ![0, 1].includes(newStatus)) {
                 return res.status(400).json({ error: 'Invalid value for status' });
             }
-            await db.run(`UPDATE todos SET status = ? WHERE id = ?`, value, id);
+            await db.run(`UPDATE todos SET status = ? WHERE id = ?`, newStatus, id);
             console.log(`[API] Successfully updated status for todo:${id}`);
-            return res.status(200).json({ success: true, newValue: value });
+            return res.status(200).json({ success: true, newValue: newStatus });
 
         } else {
             return res.status(400).json({ error: 'Invalid field for patching' });

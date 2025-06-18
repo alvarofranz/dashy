@@ -36,10 +36,16 @@ export async function getObject(table, id) {
     return fetch(`/api/object/${table}/${id}`).then(handleResponse);
 }
 
-export async function getObjectsList(table, { limit = 20, offset = 0 } = {}) {
-    let url = table === 'recent'
-        ? `/api/recent?limit=${limit}&offset=${offset}`
-        : `/api/objects/${table}?limit=${limit}&offset=${offset}`;
+export async function getObjectsList(table, { limit = 20, offset = 0, filters = {} } = {}) {
+    let url;
+    if (table === 'recent') {
+        url = `/api/recent?limit=${limit}&offset=${offset}`;
+    } else {
+        url = `/api/objects/${table}?limit=${limit}&offset=${offset}`;
+        if (filters.types && filters.types.length > 0) {
+            url += `&types=${encodeURIComponent(JSON.stringify(filters.types))}`;
+        }
+    }
     return fetch(url).then(handleResponse);
 }
 
@@ -74,8 +80,9 @@ export async function createObject(type, formData) {
     return fetch(`/api/object/${type}`, { method: 'POST', headers, body }).then(handleResponse);
 }
 
-export async function searchObjects(term) {
-    return fetch(`/api/search?term=${encodeURIComponent(term)}`).then(handleResponse);
+export async function searchObjects(term, limit = 10) {
+    if (term.length < 2) return Promise.resolve([]);
+    return fetch(`/api/search?term=${encodeURIComponent(term)}&limit=${limit}`).then(handleResponse);
 }
 
 export async function updateObject(table, id, field, value) {

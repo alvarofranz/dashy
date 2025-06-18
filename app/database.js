@@ -23,27 +23,27 @@ export async function initDatabase() {
 
         CREATE TABLE IF NOT EXISTS people (
             id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
+            title TEXT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS images (
             id TEXT PRIMARY KEY,
-            original_name TEXT NOT NULL,
+            title TEXT NOT NULL,
             file_path TEXT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS other_files (
             id TEXT PRIMARY KEY,
-            original_name TEXT NOT NULL,
+            title TEXT NOT NULL,
             file_path TEXT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS interactions (
             id TEXT PRIMARY KEY,
-            description TEXT NOT NULL,
+            title TEXT NOT NULL,
             mood INTEGER NOT NULL,
             interaction_date DATE NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -54,6 +54,13 @@ export async function initDatabase() {
             title TEXT NOT NULL,
             object_type TEXT NOT NULL,
             mood INTEGER NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS todos (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            status INTEGER NOT NULL DEFAULT 0, -- 0 = incomplete, 1 = complete
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 

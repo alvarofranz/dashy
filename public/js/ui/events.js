@@ -6,6 +6,8 @@ import { renderObject, renderListView, loadMoreItems, renderDashboardView } from
 export function initializeEventListeners() {
     document.body.addEventListener('click', handleGlobalClick);
     document.body.addEventListener('submit', handleGlobalSubmit);
+    document.body.addEventListener('change', handleGlobalChange);
+    document.body.addEventListener('focusin', handleFocusIn); // For custom dropdown
 
     contentPanel.addEventListener('input', debounce(handleContentPanelInput, 300));
     contentPanel.addEventListener('keydown', handleKeyDown);
@@ -43,7 +45,7 @@ async function handleGlobalClick(e) {
 
     // --- Modal-specific closing actions ---
     if (window.dashy.appState.isModalOpen) {
-        if (target.closest('.cancel-modal-btn') || target.id === 'modal-overlay') {
+        if (target.closest('.cancel-modal-btn')) {
             closeModal();
         }
         return;
@@ -67,9 +69,10 @@ async function handleGlobalClick(e) {
     }
 
     if (target.closest('#app-panel-content')) {
-        if (target.closest('.list-item')) { renderObject(target.closest('.list-item').dataset.table, target.closest('.list-item').dataset.id); }
+        if (target.closest('.list-item') && !target.closest('.todo-list-status')) { renderObject(target.closest('.list-item').dataset.table, target.closest('.list-item').dataset.id); }
         else if (target.closest('.link-item') && !target.closest('.unlink-btn')) { renderObject(target.closest('.link-item').dataset.table, target.closest('.link-item').dataset.id); }
         else if (target.closest('.search-results-list > li')) { await handleSearchItemClick(target.closest('li')); }
+        else if (target.closest('.custom-type-results > li')) { handleCustomTypeClick(target.closest('li')); }
         else if (target.closest('.unlink-btn')) { await handleUnlinkClick(target); }
         else if (target.closest('.delete-object-btn')) { await handleDeleteClick(target); }
         else if (target.closest('.editable-title')) { activateInlineEdit(target.closest('.editable-title')); }
@@ -80,10 +83,12 @@ async function handleGlobalClick(e) {
 async function handleGlobalSubmit(e) {
     e.preventDefault();
 
-    if (e.target.id === 'add-form') {
-        const form = e.target;
-        const type = form.dataset.type;
-        const formData = new FormData(form);
+    const form = e.target;
+    const type = form.dataset.type;
+    const formData = new FormData(form);
+
+    // The main 'Add New' form
+    if (form.id === 'add-form') {
         const links = getSelectedLinks(form.querySelector('.add-link-form'));
         formData.append('links', JSON.stringify(links));
         try {
@@ -96,19 +101,23 @@ async function handleGlobalSubmit(e) {
                 }
             });
 
-            const primaryItem = createdItems.find(item => item.table === type) || createdItems[0];
+            let expectedTable = type === 'person' ? 'people' : `${type}s`;
+            if (['image', 'other_file', 'custom_object'].includes(type)) expectedTable = `${type}s`;
+            if (type === 'custom_object') expectedTable = 'custom_objects';
+            if (type === 'other_file') expectedTable = 'other_files';
+
+
+            const primaryItem = createdItems.find(item => item.table === expectedTable) || createdItems[0];
             if (primaryItem) {
                 renderObject(primaryItem.table, primaryItem.id);
             } else {
                 renderDashboardView();
             }
-        } catch (error) { alert(`Error: ${error.message}`); }
+        } catch (error) { console.error(error); alert(`Error: ${error.message}`); }
     }
 
-    if (e.target.id === 'on-the-fly-add-form') {
-        const form = e.target;
-        const type = form.dataset.type;
-        const formData = new FormData(form);
+    // The 'On-the-fly' form in the modal
+    if (form.id === 'on-the-fly-add-form') {
         try {
             const result = await api.createObject(type, formData);
             const createdItems = Array.isArray(result) ? result : [result];
@@ -117,26 +126,70 @@ async function handleGlobalSubmit(e) {
                 if (item.table === 'places') window.dashy.addMarkerToMap(item, true);
             });
 
-            const primaryItem = createdItems.find(item => item.table === type) || createdItems[0];
+            let expectedTable = `${type}s`;
+            if (type === 'person') expectedTable = 'people';
+            if (type === 'custom_object') expectedTable = 'custom_objects';
+            if (type === 'other_file') expectedTable = 'other_files';
 
-            if (primaryItem) {
+            const allPrimaryItems = createdItems.filter(item => item.table === expectedTable);
+
+            if (allPrimaryItems.length > 0) {
                 const objectViewContext = document.querySelector('.object-view');
                 const addFormContext = document.getElementById('add-form');
 
-                if (objectViewContext) {
-                    const source = objectViewContext.dataset;
-                    const target = primaryItem;
-                    await api.post('/link', { source_id: source.id, source_table: source.table, target_id: target.id, target_table: target.table });
-
-                    const list = objectViewContext.querySelector('.links-list');
-                    list.insertAdjacentHTML('beforeend', `<li class="link-item" data-id="${target.id}" data-table="${target.table}"><span class="link-title"><i class="fas ${getIconForTable(target.table)}"></i> ${target.title}</span><button class="unlink-btn action-button" title="Unlink Item"><i class="fas fa-times"></i></button></li>`);
-                } else if (addFormContext) {
-                    const linkForm = addFormContext.querySelector('.add-link-form');
-                    if (linkForm) addLinkToForm(primaryItem, linkForm);
+                for (const primaryItem of allPrimaryItems) {
+                    if (objectViewContext) { // Linking to an existing object we are viewing
+                        const source = objectViewContext.dataset;
+                        const target = primaryItem;
+                        await api.post('/link', { source_id: source.id, source_table: source.table, target_id: target.id, target_table: target.table });
+                        const list = objectViewContext.querySelector('.links-list');
+                        list.insertAdjacentHTML('beforeend', `<li class="link-item" data-id="${target.id}" data-table="${target.table}"><span class="link-title"><i class="fas ${getIconForTable(target.table)}"></i> ${target.title}</span><button class="unlink-btn action-button" title="Unlink Item"><i class="fas fa-times"></i></button></li>`);
+                    } else if (addFormContext) { // Linking to a new object we are creating
+                        const linkForm = addFormContext.querySelector('.add-link-form');
+                        if (linkForm) addLinkToForm(primaryItem, linkForm);
+                    }
                 }
             }
             closeModal();
-        } catch (error) { alert(`Error creating linked item: ${error.message}`); }
+        } catch (error) { console.error(error); alert(`Error creating linked item: ${error.message}`); }
+    }
+}
+
+async function handleGlobalChange(e) {
+    const target = e.target;
+    if (target.matches('#todo-status')) { // In object view
+        const id = target.dataset.id;
+        const newStatus = target.checked ? 1 : 0;
+        await api.updateObject('todos', id, 'status', newStatus);
+        target.nextElementSibling.textContent = newStatus ? 'Complete' : 'Incomplete';
+        document.querySelector('.object-view-header h2')?.classList.toggle('completed', target.checked);
+    } else if (target.matches('.todo-list-status input')) { // In list view
+        const id = target.dataset.id;
+        const newStatus = target.checked ? 1 : 0;
+        await api.updateObject('todos', id, 'status', newStatus);
+        target.closest('.list-item').querySelector('.item-title').classList.toggle('completed', target.checked);
+    } else if (target.matches('.custom-file-input')) { // Custom file input
+        const fileListEl = target.parentElement.querySelector('.file-list');
+        if (!fileListEl) return;
+
+        fileListEl.innerHTML = '';
+        if (target.files.length > 0) {
+            for (const file of target.files) {
+                const li = document.createElement('li');
+                li.textContent = file.name;
+                fileListEl.appendChild(li);
+            }
+        }
+    }
+}
+
+async function handleFocusIn(e) {
+    if (e.target.matches('.custom-type-search-input')) {
+        const input = e.target;
+        const resultsList = input.nextElementSibling;
+        const allTypes = await api.getCustomObjectTypes();
+        resultsList.innerHTML = allTypes.map(t => `<li data-type-name="${t}">${formatObjectType(t)}</li>`).join('');
+        resultsList.style.display = 'block';
     }
 }
 
@@ -160,6 +213,16 @@ async function handleContentPanelInput(e) {
         resultsList.innerHTML = results
             .filter(r => !existingLinks.includes(`${r.table}:${r.id}`))
             .map(r => `<li data-id="${r.id}" data-table="${r.table}" data-title="${r.title}"><i class="fas ${getIconForTable(r.table)}"></i> ${r.title}</li>`).join('');
+    } else if (e.target.matches('.custom-type-search-input')) {
+        const input = e.target;
+        const searchTerm = input.value.toLowerCase();
+        const resultsList = input.nextElementSibling;
+
+        const allTypes = await api.getCustomObjectTypes();
+        const filteredTypes = searchTerm ? allTypes.filter(t => t.toLowerCase().includes(searchTerm)) : allTypes;
+
+        resultsList.innerHTML = filteredTypes.map(t => `<li data-type-name="${t}">${formatObjectType(t)}</li>`).join('');
+        resultsList.style.display = filteredTypes.length > 0 ? 'block' : 'none';
     }
 }
 
@@ -179,6 +242,14 @@ function handleFocusOut(e) {
     }
     if (e.target.closest('.kv-edit-mode') && !e.target.closest('.kv-edit-mode').contains(e.relatedTarget)) {
         saveKeyValueRow(e.target.closest('.kv-edit-mode'));
+    }
+    if (e.target.matches('.custom-type-search-input')) {
+        setTimeout(() => {
+            const resultsList = e.target.nextElementSibling;
+            if (resultsList && !resultsList.matches(':hover')) {
+                resultsList.style.display = 'none';
+            }
+        }, 150);
     }
 }
 
@@ -215,6 +286,12 @@ function handleMapClickForForm(e) {
 }
 
 async function handleSearchItemClick(li) {
+    // This function handles both link search and custom type search results
+    if (li.closest('.custom-type-results')) {
+        handleCustomTypeClick(li);
+        return;
+    }
+
     const linkForm = li.closest('.add-link-form');
     const objectView = li.closest('.object-view');
     const target = { id: li.dataset.id, table: li.dataset.table, title: li.dataset.title };
@@ -229,6 +306,14 @@ async function handleSearchItemClick(li) {
     }
     linkForm.querySelector('.link-search-input').value = '';
     li.parentElement.innerHTML = '';
+}
+
+function handleCustomTypeClick(li) {
+    const container = li.closest('.custom-type-search-container');
+    const input = container.querySelector('.custom-type-search-input');
+    input.value = li.dataset.typeName;
+    li.parentElement.innerHTML = '';
+    li.parentElement.style.display = 'none';
 }
 
 async function handleUnlinkClick(target) {
@@ -268,15 +353,16 @@ async function saveInlineEdit(input) {
     const newValue = input.value.trim();
     const originalValue = span.dataset.original;
 
-    span.innerHTML = originalValue;
+    span.innerHTML = originalValue; // Revert to span to avoid losing content on failed API call
 
     if (newValue && newValue !== originalValue) {
         try {
             const result = await api.updateObject(table, id, 'title', newValue);
             span.textContent = result.newValue;
         } catch (e) {
+            console.error(e);
             alert(`Error: ${e.message}`);
-            span.textContent = originalValue;
+            span.textContent = originalValue; // Restore original on failure
         }
     } else {
         span.textContent = originalValue;
@@ -342,6 +428,7 @@ async function saveKeyValueRow(li) {
         li.classList.remove('kv-edit-mode', 'new-kv');
         li.innerHTML = `<span class="key">${key}</span><span class="value">${value}</span><div class="actions"><button class="edit-kv-button action-button"><i class="fas fa-pencil-alt"></i></button><button class="delete-kv-button action-button"><i class="fas fa-trash"></i></button></div>`;
     } catch (e) {
+        console.error(e);
         alert(`Error saving detail: ${e.message}`);
         cancelEditKeyValueRow(li);
     }

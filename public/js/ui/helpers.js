@@ -8,10 +8,11 @@ export const getIconForTable = (table) => {
     const icons = {
         places: 'fa-map-marker-alt',
         people: 'fa-user',
-        interactions: 'fa-comments',
-        custom_objects: 'fa-star',
+        interactions: 'fa-shuffle',
+        custom_objects: 'fa-tag',
         images: 'fa-image',
         other_files: 'fa-file-alt',
+        todos: 'fa-check-square',
         dashboard: 'fa-home'
     };
     return icons[table] || 'fa-question-circle';
@@ -27,7 +28,9 @@ export const formatObjectType = (type) => {
         'interaction': 'Interaction',
         'image': 'Image',
         'other_file': 'File',
-        'custom_object': 'Custom Object'
+        'custom_object': 'Custom Object',
+        'todos': 'To-Dos',
+        'todo': 'To-Do'
     };
     if (specialCases[type]) return specialCases[type];
 

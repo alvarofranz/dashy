@@ -22,25 +22,40 @@ async function generateFormFields(type, isModal = false) {
             html += `<div class="form-group"><label for="${p}title">Name</label><input type="text" id="${p}title" name="title" required></div>`;
             break;
         case 'interaction':
-            html += `<div class="form-group"><label for="${p}description">Description</label><textarea id="${p}description" name="description" required></textarea></div>`;
+            html += `<div class="form-group"><label for="${p}title">Description</label><textarea id="${p}title" name="title" required></textarea></div>`;
             html += `<div class="form-group"><label for="${p}interaction_date">Date</label><input type="date" id="${p}interaction_date" name="interaction_date" value="${new Date().toISOString().slice(0,10)}" required></div>`;
             html += `<div class="form-group"><label for="${p}mood">Mood (-100 to 100)</label><input type="range" id="${p}mood" name="mood" min="-100" max="100" value="0"></div>`;
             break;
         case 'custom_object':
             html += `<div class="form-group"><label for="${p}title">Title</label><input type="text" id="${p}title" name="title" required></div>`;
-            const types = await api.getCustomObjectTypes();
-            const datalist = types.map(t => `<option value="${formatObjectType(t)}"></option>`).join('');
-            html += `<div class="form-group"><label for="${p}object_type">Type</label><input type="text" id="${p}object_type" name="object_type" list="${p}custom-types" required autocomplete="off"><datalist id="${p}custom-types">${datalist}</datalist></div>`;
+            html += `<div class="form-group custom-type-search-container">
+                        <label for="${p}object_type">Type</label>
+                        <input type="text" id="${p}object_type" name="object_type" class="custom-type-search-input" placeholder="Enter or select a type" required autocomplete="off">
+                        <ul class="search-results-list custom-type-results"></ul>
+                     </div>`;
             html += `<div class="form-group"><label for="${p}mood">Mood (-100 to 100)</label><input type="range" id="${p}mood" name="mood" min="-100" max="100" value="0"></div>`;
+            break;
+        case 'todo':
+            html += `<div class="form-group"><label for="${p}title">To-Do Item</label><input type="text" id="${p}title" name="title" required></div>`;
+            html += `<input type="hidden" name="status" value="0">`; // Default to incomplete
             break;
         case 'image':
         case 'other_file':
             const isImage = type === 'image';
-            html += `<div class="form-group"><label>Select File(s)</label><input type="file" name="files" ${isImage ? 'accept="image/*,.heic,.heif"' : ''} multiple required></div>`;
+            const accept = isImage ? 'image/jpeg,image/png,image/webp,image/gif,image/avif' : '';
+            const labelText = isImage ? 'Select Image(s)' : 'Select File(s)';
+            html += `<div class="form-group">
+                        <label>${labelText}</label>
+                        <div class="custom-file-input-container">
+                            <input type="file" name="files" id="${p}files" class="custom-file-input" accept="${accept}" multiple required>
+                            <label for="${p}files" class="button"><i class="fas fa-upload"></i> Choose Files</label>
+                            <ul class="file-list"></ul>
+                        </div>
+                     </div>`;
             break;
     }
 
-    if (['place', 'person', 'interaction', 'custom_object'].includes(type)) {
+    if (['place', 'person', 'interaction', 'custom_object', 'todo'].includes(type)) {
         html += `<div class="form-group"><label>Custom Details</label><ul class="kv-list"></ul><button type="button" class="add-kv-button button"><i class="fas fa-plus"></i> Add Detail</button></div>`;
     }
     return html;
@@ -55,9 +70,7 @@ export async function renderAddForm(type) {
     if (type !== 'place') removeTempMarker();
 
     const formFieldsHtml = await generateFormFields(type, false);
-    const isPlural = ['image', 'other_file'].includes(type); // pluralize for file types
-    const singularOrPluralType = isPlural ? type + 's' : type;
-    const formTitle = `Add New ${formatObjectType(singularOrPluralType)}`;
+    const formTitle = `Add New ${formatObjectType(type)}`;
 
     contentPanel.innerHTML = `
         <div class="form-container">
@@ -112,8 +125,9 @@ export function renderAddLinkForm() {
         <div class="link-creation-options">
             <button type="button" class="create-link-btn button" data-type="place" title="Create & Link Place"><i class="fas fa-map-marker-alt"></i></button>
             <button type="button" class="create-link-btn button" data-type="person" title="Create & Link Person"><i class="fas fa-user"></i></button>
-            <button type="button" class="create-link-btn button" data-type="interaction" title="Create & Link Interaction"><i class="fas fa-comments"></i></button>
-            <button type="button" class="create-link-btn button" data-type="custom_object" title="Create & Link Custom Object"><i class="fas fa-star"></i></button>
+            <button type="button" class="create-link-btn button" data-type="todo" title="Create & Link To-Do"><i class="fas fa-check-square"></i></button>
+            <button type="button" class="create-link-btn button" data-type="interaction" title="Create & Link Interaction"><i class="fas fa-shuffle"></i></button>
+            <button type="button" class="create-link-btn button" data-type="custom_object" title="Create & Link Custom Object"><i class="fas fa-tag"></i></button>
             <button type="button" class="create-link-btn button" data-type="image" title="Create & Link Image"><i class="fas fa-image"></i></button>
             <button type="button" class="create-link-btn button" data-type="other_file" title="Create & Link File"><i class="fas fa-file-alt"></i></button>
         </div>

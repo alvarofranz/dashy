@@ -18,20 +18,52 @@ const getFullObjectDetails = async (table, id) => {
     if (!object) return null;
 
     object.key_values = await db.all('SELECT id, key, value FROM key_values WHERE object_id = ? ORDER BY id', id);
-    const linkedIds = await db.all(`
+
+    // --- Start: Two-Level Link Fetching ---
+
+    // Get Level 1 links
+    const L1_links_raw = await db.all(`
         SELECT target_id as id, target_table as "table" FROM links WHERE source_id = ? AND source_table = ?
         UNION
         SELECT source_id as id, source_table as "table" FROM links WHERE target_id = ? AND target_table = ?
     `, id, table, id, table);
 
+    let all_links_raw = [...L1_links_raw];
+
+    // Get Level 2 links (links of level 1 links)
+    if (L1_links_raw.length > 0) {
+        // Note: SQLite tuple IN clause support `(col1, col2) IN ((?), (?))` is tricky with node-sqlite.
+        // We will fetch them iteratively, which is safe and compatible.
+        const L2_links_promises = L1_links_raw.map(l1_link =>
+            db.all(`
+                SELECT target_id as id, target_table as "table" FROM links WHERE source_id = ? AND source_table = ?
+                UNION
+                SELECT source_id as id, source_table as "table" FROM links WHERE target_id = ? AND target_table = ?
+            `, l1_link.id, l1_link.table, l1_link.id, l1_link.table)
+        );
+        const L2_links_results = await Promise.all(L2_links_promises);
+        all_links_raw.push(...L2_links_results.flat());
+    }
+
+    // De-duplicate and filter out the original object itself
+    const uniqueLinks = new Map();
+    all_links_raw.forEach(link => {
+        if (link.id === id && link.table === table) return; // Exclude the main object
+        uniqueLinks.set(`${link.table}:${link.id}`, link);
+    });
+    const linkedIds = Array.from(uniqueLinks.values());
+
+    // --- End: Two-Level Link Fetching ---
+
+    // Now fetch details for all unique links
     const tableQueries = {
         places: `SELECT id, title, 'places' as "table" FROM places WHERE id = ?`,
         people: `SELECT id, title, 'people' as "table" FROM people WHERE id = ?`,
         interactions: `SELECT id, title, 'interactions' as "table" FROM interactions WHERE id = ?`,
         custom_objects: `SELECT id, title, object_type, 'custom_objects' as "table" FROM custom_objects WHERE id = ?`,
-        images: `SELECT id, title, 'images' as "table" FROM images WHERE id = ?`,
-        other_files: `SELECT id, title, 'other_files' as "table" FROM other_files WHERE id = ?`,
-        todos: `SELECT id, title, 'todos' as "table" FROM todos WHERE id = ?`,
+        images: `SELECT id, title, 'images' as "table", file_path FROM images WHERE id = ?`,
+        other_files: `SELECT id, title, 'other_files' as "table", file_path FROM other_files WHERE id = ?`,
+        todos: `SELECT id, title, 'todos' as "table", status FROM todos WHERE id = ?`,
     };
 
     const linkedObjects = await Promise.all(

@@ -132,7 +132,6 @@ function appendItemsToListView(items, type) {
     if (loader) {
         if (items.length < 20) {
             loader.remove();
-            console.log("End of list.");
         } else {
             loader.textContent = 'Loading...';
         }
@@ -149,7 +148,6 @@ export async function renderObject(table, id) {
         highlightMarker(window.dashy.appState.markers[id]);
         window.dashy.appState.map.flyTo(window.dashy.appState.markers[id].getLatLng(), 15);
     } else {
-        // Await this to prevent race conditions if the next call is faster
         const objectData = await api.getObject(table, id);
         const linkedPlace = objectData.links.find(l => l.table === 'places');
         if (linkedPlace && window.dashy.appState.markers[linkedPlace.id]) {
@@ -161,6 +159,68 @@ export async function renderObject(table, id) {
     contentPanel.innerHTML = '<div class="loader">Loading...</div>';
     try {
         const object = await api.getObject(table, id);
+
+        // --- Start: Grouped Links Rendering ---
+        const links = object.links;
+        const groupedLinks = { todos: [], images: [], other_files: [], people: [], interactions: [], custom_objects: [], places: [] };
+        links.forEach(link => {
+            if (groupedLinks[link.table]) {
+                groupedLinks[link.table].push(link);
+            }
+        });
+
+        const sectionOrder = ['todos', 'images', 'other_files', 'people', 'interactions', 'custom_objects', 'places'];
+        let groupedLinksHtml = '';
+
+        sectionOrder.forEach(sectionKey => {
+            const items = groupedLinks[sectionKey];
+            if (items.length === 0) return;
+
+            const sectionTitle = formatObjectType(sectionKey);
+            let sectionContent = '';
+
+            if (sectionKey === 'todos') {
+                items.sort((a, b) => a.status - b.status); // Incomplete (0) first
+                const incomplete = items.filter(t => t.status === 0);
+                const complete = items.filter(t => t.status === 1);
+
+                const renderTodo = (todo) => `<li class="link-item" data-id="${todo.id}" data-table="${todo.table}"><span class="link-title ${todo.status === 1 ? 'completed' : ''}"><i class="fas fa-check-square"></i> <span>${todo.title}</span></span><button class="unlink-btn action-button" title="Unlink Item"><i class="fas fa-times"></i></button></li>`;
+
+                let listHtml = incomplete.map(renderTodo).join('');
+                if (complete.length > 0) {
+                    listHtml += `<div class="completed-todos-container hidden">${complete.map(renderTodo).join('')}</div>`;
+                    listHtml += `<button class="show-completed-todos-btn button">${`Display ${complete.length} complete element` + (complete.length > 1 ? 's' : '')}</button>`;
+                }
+                sectionContent = `<ul class="links-list">${listHtml}</ul>`;
+
+            } else if (sectionKey === 'images') {
+                const imageItemsHtml = items.map(l =>
+                    `<li class="link-item" data-id="${l.id}" data-table="${l.table}">
+                        <img src="/data${l.file_path}" alt="${l.title}" loading="lazy">
+                        <button class="unlink-btn action-button" title="Unlink Item"><i class="fas fa-times"></i></button>
+                    </li>`
+                ).join('');
+                sectionContent = `<ul class="links-list image-grid">${imageItemsHtml}</ul>`;
+
+            } else {
+                const itemsHtml = items.map(l =>
+                    `<li class="link-item" data-id="${l.id}" data-table="${l.table}">
+                        <span class="link-title"><i class="fas ${getIconForTable(l.table)}"></i> <span>${l.title}</span></span>
+                        <button class="unlink-btn action-button" title="Unlink Item"><i class="fas fa-times"></i></button>
+                    </li>`
+                ).join('');
+                sectionContent = `<ul class="links-list">${itemsHtml}</ul>`;
+            }
+
+            groupedLinksHtml += `
+                <div class="section link-section">
+                    <div class="section-header"><h3><i class="fas ${getIconForTable(sectionKey)}"></i> ${sectionTitle}</h3></div>
+                    ${sectionContent}
+                </div>
+            `;
+        });
+        // --- End: Grouped Links Rendering ---
+
         let detailsHtml = '';
         let headerClass = '';
 
@@ -179,9 +239,7 @@ export async function renderObject(table, id) {
             </div>`;
         }
 
-
         const kvHtml = object.key_values.map(kv => `<li data-kv-id="${kv.id}"><span class="key">${kv.key}</span><span class="value">${kv.value}</span><div class="actions"><button class="edit-kv-button action-button"><i class="fas fa-pencil-alt"></i></button><button class="delete-kv-button action-button"><i class="fas fa-trash"></i></button></div></li>`).join('');
-        const linksHtml = object.links.map(l => `<li class="link-item" data-id="${l.id}" data-table="${l.table}"><span class="link-title"><i class="fas ${getIconForTable(l.table)}"></i> ${l.title}</span><button class="unlink-btn action-button" title="Unlink Item"><i class="fas fa-times"></i></button></li>`).join('');
         const objectTypeDisplay = (table === 'custom_objects' && object.object_type) ? `<span class="object-type-display">${formatObjectType(object.object_type)}</span>` : '';
         const imagePreview = (table === 'images') ? `<img src="/data${object.file_path}" class="image-preview" alt="${object.title}">` : '';
 
@@ -197,7 +255,7 @@ export async function renderObject(table, id) {
 
                 <div class="section">
                     <div class="section-header"><h3><i class="fas fa-link"></i> Linked Items</h3></div>
-                    <ul class="links-list">${linksHtml}</ul>
+                    ${groupedLinksHtml.length > 0 ? groupedLinksHtml : '<p class="text-secondary">No linked items found.</p>'}
                     ${renderAddLinkForm()}
                 </div>
 

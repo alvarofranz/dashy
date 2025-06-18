@@ -69,14 +69,27 @@ async function handleGlobalClick(e) {
     }
 
     if (target.closest('#app-panel-content')) {
-        if (target.closest('.list-item') && !target.closest('.todo-list-status')) { renderObject(target.closest('.list-item').dataset.table, target.closest('.list-item').dataset.id); }
-        else if (target.closest('.link-item') && !target.closest('.unlink-btn')) { renderObject(target.closest('.link-item').dataset.table, target.closest('.link-item').dataset.id); }
+        if (target.closest('.link-item:not(.image-grid .link-item)')) {
+            if (!target.closest('.unlink-btn')) renderObject(target.closest('.link-item').dataset.table, target.closest('.link-item').dataset.id);
+        }
+        else if (target.closest('.image-grid .link-item img')) {
+            renderObject(target.closest('.link-item').dataset.table, target.closest('.link-item').dataset.id);
+        }
+        else if (target.closest('.list-item') && !target.closest('.todo-list-status')) { renderObject(target.closest('.list-item').dataset.table, target.closest('.list-item').dataset.id); }
         else if (target.closest('.search-results-list > li')) { await handleSearchItemClick(target.closest('li')); }
         else if (target.closest('.custom-type-results > li')) { handleCustomTypeClick(target.closest('li')); }
         else if (target.closest('.unlink-btn')) { await handleUnlinkClick(target); }
         else if (target.closest('.delete-object-btn')) { await handleDeleteClick(target); }
         else if (target.closest('.editable-title')) { activateInlineEdit(target.closest('.editable-title')); }
         else if (target.closest('.create-link-btn')) { renderOnTheFlyForm(target.closest('.create-link-btn').dataset.type); }
+        else if (target.closest('.show-completed-todos-btn')) {
+            const container = target.previousElementSibling;
+            if (container && container.classList.contains('completed-todos-container')) {
+                container.classList.remove('hidden');
+                target.classList.add('hidden');
+            }
+            return;
+        }
     }
 }
 
@@ -142,8 +155,8 @@ async function handleGlobalSubmit(e) {
                         const source = objectViewContext.dataset;
                         const target = primaryItem;
                         await api.post('/link', { source_id: source.id, source_table: source.table, target_id: target.id, target_table: target.table });
-                        const list = objectViewContext.querySelector('.links-list');
-                        list.insertAdjacentHTML('beforeend', `<li class="link-item" data-id="${target.id}" data-table="${target.table}"><span class="link-title"><i class="fas ${getIconForTable(target.table)}"></i> ${target.title}</span><button class="unlink-btn action-button" title="Unlink Item"><i class="fas fa-times"></i></button></li>`);
+                        // Instead of adding to the list, we just re-render the view to get all the new grouping logic
+                        renderObject(source.table, source.id);
                     } else if (addFormContext) { // Linking to a new object we are creating
                         const linkForm = addFormContext.querySelector('.add-link-form');
                         if (linkForm) addLinkToForm(primaryItem, linkForm);
@@ -299,8 +312,7 @@ async function handleSearchItemClick(li) {
     if (objectView) {
         const source = objectView.dataset;
         await api.post('/link', { source_id: source.id, source_table: source.table, target_id: target.id, target_table: target.table });
-        const list = objectView.querySelector('.links-list');
-        list.insertAdjacentHTML('beforeend', `<li class="link-item" data-id="${target.id}" data-table="${target.table}"><span class="link-title"><i class="fas ${getIconForTable(target.table)}"></i> ${target.title}</span><button class="unlink-btn action-button" title="Unlink Item"><i class="fas fa-times"></i></button></li>`);
+        renderObject(source.table, source.id); // Re-render to show new link correctly
     } else {
         addLinkToForm(target, linkForm);
     }
@@ -325,7 +337,8 @@ async function handleUnlinkClick(target) {
     const targetData = linkedItem.dataset;
     if (confirm('Are you sure you want to unlink this item?')) {
         await api.unlinkObjects(source, targetData);
-        linkedItem.remove();
+        // Re-render the view to show the updated links
+        renderObject(source.table, source.id);
     }
 }
 

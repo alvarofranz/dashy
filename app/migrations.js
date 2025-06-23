@@ -37,11 +37,10 @@ const MIGRATIONS = {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
-        CREATE TABLE IF NOT EXISTS interactions (
+        CREATE TABLE IF NOT EXISTS notes (
             id TEXT PRIMARY KEY,
             title TEXT NOT NULL,
-            mood INTEGER NOT NULL,
-            interaction_date DATE NOT NULL,
+            content TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -49,7 +48,6 @@ const MIGRATIONS = {
             id TEXT PRIMARY KEY,
             title TEXT NOT NULL,
             object_type TEXT NOT NULL,
-            mood INTEGER NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 

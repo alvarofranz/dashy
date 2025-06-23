@@ -16,7 +16,7 @@ export function toggleCustomObjectFilter(type) {
 const listToFormTypeMap = {
     places: 'place',
     people: 'person',
-    interactions: 'interaction',
+    notes: 'note',
     custom_objects: 'custom_object',
     images: 'image',
     files: 'other_file',
@@ -238,14 +238,14 @@ export async function renderObject(table, id) {
         const object = await api.getObject(table, id);
 
         const links = object.links;
-        const groupedLinks = { todos: [], images: [], files: [], people: [], interactions: [], custom_objects: [], places: [] };
+        const groupedLinks = { todos: [], images: [], notes: [], files: [], people: [], custom_objects: [], places: [] };
         links.forEach(link => {
             if (groupedLinks[link.table]) {
                 groupedLinks[link.table].push(link);
             }
         });
 
-        const sectionOrder = ['todos', 'images', 'files', 'people', 'interactions', 'custom_objects', 'places'];
+        const sectionOrder = ['todos', 'images', 'notes', 'files', 'people', 'custom_objects', 'places'];
         let groupedLinksHtml = '';
 
         sectionOrder.forEach(sectionKey => {
@@ -273,7 +273,6 @@ export async function renderObject(table, id) {
                 sectionContent = `<ul class="links-list">${listHtml}</ul>`;
 
             } else if (sectionKey === 'images') {
-                // MODIFIED: Use the custom protocol for linked image sources
                 const imageItemsHtml = items.map(l =>
                     `<li class="link-item" data-id="${l.id}" data-table="${l.table}">
                         <img src="${createDataUrl(l.file_path)}" alt="${l.title}" loading="lazy">
@@ -281,6 +280,18 @@ export async function renderObject(table, id) {
                     </li>`
                 ).join('');
                 sectionContent = `<ul class="links-list image-grid">${imageItemsHtml}</ul>`;
+
+            } else if (sectionKey === 'notes') {
+                const notesHtml = items.map(l =>
+                    `<li class="link-item note-display-item" data-id="${l.id}" data-table="${l.table}">
+                        <div class="note-display-header">
+                            <span class="link-title"><i class="fas ${getIconForTable(l.table)}"></i> <span>${l.title}</span></span>
+                            <button class="unlink-btn action-button" title="Unlink Item"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="note-display-content">${l.content || ''}</div>
+                    </li>`
+                ).join('');
+                sectionContent = `<ul class="links-list">${notesHtml}</ul>`;
 
             } else {
                 const itemsHtml = items.map(l =>
@@ -303,13 +314,6 @@ export async function renderObject(table, id) {
         let detailsHtml = '';
         let headerClass = '';
 
-        if (table === 'interactions' || table === 'custom_objects') {
-            const moodPercentage = (object.mood + 100) / 2;
-            detailsHtml += `<div class="detail-item"><i class="fas fa-heart"></i> Mood <div class="mood-bar"><div class="thumb" style="transform: scaleX(${moodPercentage / 100});"></div></div></div>`;
-        }
-        if (table === 'interactions') {
-            detailsHtml += `<div class="detail-item"><i class="fas fa-calendar-alt"></i> ${object.interaction_date}</div>`;
-        }
         if (table === 'todos') {
             headerClass = object.status === 1 ? 'completed' : '';
             const isComplete = object.status === 1;
@@ -323,10 +327,12 @@ export async function renderObject(table, id) {
                 </button>`;
         }
 
+        if (table === 'notes') {
+            detailsHtml += `<div class="editable note-content-display" data-field="content" data-edit-type="textarea">${object.content || 'Click to add content...'}</div>`;
+        }
+
         const kvHtml = object.key_values.map(kv => `<li data-kv-id="${kv.id}"><span class="key">${kv.key}</span><span class="value">${kv.value}</span><div class="actions"><button class="edit-kv-button action-button"><i class="fas fa-pencil-alt"></i></button><button class="delete-kv-button action-button"><i class="fas fa-trash"></i></button></div></li>`).join('');
         const objectTypeDisplay = (table === 'custom_objects' && object.object_type) ? `<span class="object-type-display">${formatObjectType(object.object_type)}</span>` : '';
-
-        // MODIFIED: Use the custom protocol for the main image preview and download link
         const imagePreview = (table === 'images') ? `<img src="${createDataUrl(object.file_path)}" class="image-preview" alt="${object.title}">` : '';
         const downloadLink = (table === 'files') ? `<a href="${createDataUrl(object.file_path)}" download="${object.title}" class="button"><i class="fas fa-download"></i> Download</a>` : '';
 
@@ -340,7 +346,11 @@ export async function renderObject(table, id) {
         contentPanel.innerHTML = `
             <div class="object-view" data-id="${id}" data-table="${table}">
                 <div class="object-view-header">
-                    <h2 class="${headerClass}"><i class="fas ${getIconForTable(table)}"></i> <span class="editable-title">${object.title}</span>${objectTypeDisplay}</h2>
+                    <h2 class="${headerClass}">
+                        <i class="fas ${getIconForTable(table)}"></i> 
+                        <span class="editable" data-field="title" data-edit-type="input">${object.title}</span>
+                        ${objectTypeDisplay}
+                    </h2>
                     ${headerActionsHtml}
                 </div>
 

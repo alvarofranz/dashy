@@ -70,10 +70,51 @@ body { height: 100vh; width: 100vw; overflow: hidden; font-family: var(--font-sa
 }
 
 input[type="text"], input[type="date"], input[type="number"], textarea, select { width: 100%; padding: 0.75rem; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem; transition: border-color 0.2s, box-shadow 0.2s; }
+textarea {
+    min-height: 120px;
+    font-family: inherit;
+}
 input:focus, textarea:focus, select:focus { border-color: var(--accent-primary); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.3); outline: none; }
 .form-group { margin-bottom: 1.25rem; }
 .form-group label { font-weight: 500; color: var(--text-secondary); margin-bottom: 0.5rem; display: block; font-size: 0.875rem; }
-.inline-edit-input { padding: 0.1rem 0.5rem; margin-left: -0.5rem; font-size: 2.25rem; font-weight: 700; width: 100%; }
+
+/* --- Inline Editing --- */
+.editable {
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border-radius: var(--radius-md);
+    padding: 0.1rem 0.5rem;
+    margin: 0 -0.5rem; /* Counteract padding */
+    display: inline-block;
+}
+.editable:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+.note-content-display.editable {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    padding: 0.5rem;
+    width: 100%;
+    min-height: 50px;
+}
+.note-content-display.editable:hover {
+    background-color: var(--bg-secondary);
+}
+.inline-edit-input { padding: 0.1rem 0.5rem; margin-left: -0.5rem; font-size: inherit; font-weight: inherit; width: 100%; font-family: inherit; }
+.object-view-header h2 .inline-edit-input { font-size: 1.75rem; font-weight: 700; }
+.inline-edit-textarea {
+    width: 100%;
+    min-height: 150px;
+    font-size: 1rem;
+    line-height: 1.6;
+    font-family: inherit;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+}
+
 
 /* --- Object & List Views --- */
 .list-view-header {
@@ -96,9 +137,13 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent-primary);
 }
 .object-view-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 1rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); }
 .object-view-header h2 { font-size: 1.75rem; font-weight: 700; display: flex; align-items: center; gap: 0.75rem; line-height: 1.2; flex-grow: 1; }
-.object-view-header h2 .editable-title { cursor: pointer; transition: color 0.2s; }
-.object-view-header h2 .editable-title:hover { color: var(--accent-primary); }
-.object-view-header h2.completed .editable-title { text-decoration: line-through; color: var(--text-tertiary); }
+.object-view-header h2 .editable {
+    transition: color 0.2s;
+    font-weight: 700;
+    font-size: 1.75rem;
+}
+.object-view-header h2 .editable:hover { color: var(--accent-primary); background: none; }
+.object-view-header h2.completed .editable { text-decoration: line-through; color: var(--text-tertiary); }
 .object-view-header h2 .object-type-display { display: block; font-size: 0.875rem; color: var(--text-secondary); font-weight: 500; margin-top: 0.25rem; }
 
 .image-preview {
@@ -112,8 +157,6 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent-primary);
 
 .detail-item { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; font-size: 1rem; }
 .detail-item i { color: var(--accent-primary); width: 20px; text-align: center; }
-.mood-bar { flex-grow: 1; height: 6px; background: var(--bg-tertiary); border-radius: 3px; position: relative; }
-.mood-bar .thumb { width: 100%; height: 100%; background: linear-gradient(to right, var(--danger), var(--warning), var(--success)); border-radius: 3px; transform-origin: left; }
 
 .section { margin-bottom: 2.5rem; }
 .section-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color); margin-bottom: 1rem; }
@@ -168,6 +211,26 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent-primary);
 .image-grid img, .links-list.image-grid img { width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md); }
 .links-list.image-grid .link-item .unlink-btn { position: absolute; top: 0.25rem; right: 0.25rem; z-index: 2; background-color: rgba(17, 19, 23, 0.7); color: white; visibility: hidden; opacity: 0; transition: visibility 0.2s, opacity 0.2s; }
 .links-list.image-grid .link-item:hover .unlink-btn { visibility: visible; opacity: 1; }
+
+/* Note Display Item */
+.note-display-item {
+    flex-direction: column;
+    align-items: stretch;
+}
+.note-display-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+.note-display-content {
+    margin-top: 0.5rem;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
 
 /* Bottom Nav */
 #bottom-nav { flex-shrink: 0; display: flex; justify-content: space-around; background-color: var(--bg-secondary); border-top: 1px solid var(--border-color); }

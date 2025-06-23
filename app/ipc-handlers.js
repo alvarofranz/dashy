@@ -46,7 +46,7 @@ const getFullObjectDetails = async (table, id) => {
     const tableQueries = {
         places: `SELECT id, title, 'places' as "table" FROM places WHERE id = ?`,
         people: `SELECT id, title, 'people' as "table" FROM people WHERE id = ?`,
-        interactions: `SELECT id, title, 'interactions' as "table" FROM interactions WHERE id = ?`,
+        notes: `SELECT id, title, content, 'notes' as "table" FROM notes WHERE id = ?`,
         custom_objects: `SELECT id, title, object_type, 'custom_objects' as "table" FROM custom_objects WHERE id = ?`,
         images: `SELECT id, title, 'images' as "table", file_path FROM images WHERE id = ?`,
         files: `SELECT id, title, 'files' as "table", file_path FROM files WHERE id = ?`,
@@ -195,7 +195,7 @@ export function registerIpcHandlers(dataPath) {
                 FROM (
                     SELECT id, title, 'places' as "table", created_at, null as object_type, null as file_path, -1 as status FROM places
                     UNION ALL SELECT id, title, 'people' as "table", created_at, null as object_type, null as file_path, -1 as status FROM people
-                    UNION ALL SELECT id, title, 'interactions' as "table", created_at, null as object_type, null as file_path, -1 as status FROM interactions
+                    UNION ALL SELECT id, title, 'notes' as "table", created_at, null as object_type, null as file_path, -1 as status FROM notes
                     UNION ALL SELECT id, title, 'custom_objects' as "table", created_at, object_type, null as file_path, -1 as status FROM custom_objects
                     UNION ALL SELECT id, title, 'images' as "table", created_at, null as object_type, file_path, -1 as status FROM images
                     UNION ALL SELECT id, title, 'files' as "table", created_at, null as object_type, file_path, -1 as status FROM files
@@ -207,7 +207,7 @@ export function registerIpcHandlers(dataPath) {
 
     ipcMain.handle('get:bootstrap', async () => {
         const places = await db.all('SELECT id, title, lat, lng FROM places');
-        const objectCountResult = await db.get(`SELECT (SELECT COUNT(id) FROM places) + (SELECT COUNT(id) FROM people) + (SELECT COUNT(id) FROM interactions) + (SELECT COUNT(id) FROM custom_objects) + (SELECT COUNT(id) FROM images) + (SELECT COUNT(id) FROM files) + (SELECT COUNT(id) FROM todos) as count`);
+        const objectCountResult = await db.get(`SELECT (SELECT COUNT(id) FROM places) + (SELECT COUNT(id) FROM people) + (SELECT COUNT(id) FROM notes) + (SELECT COUNT(id) FROM custom_objects) + (SELECT COUNT(id) FROM images) + (SELECT COUNT(id) FROM files) + (SELECT COUNT(id) FROM todos) as count`);
         return { places, hasObjects: objectCountResult.count > 0 };
     });
 
@@ -233,6 +233,7 @@ export function registerIpcHandlers(dataPath) {
         } else {
             const columnsToSelect = ['id', 'title', 'created_at'];
             if (table === 'images' || table === 'files') columnsToSelect.push('file_path');
+            if (table === 'notes') columnsToSelect.push('content');
             items = await db.all(`SELECT ${columnsToSelect.join(', ')} FROM ${table} ORDER BY created_at DESC LIMIT ? OFFSET ?`, limit, offset);
         }
         items.forEach(item => item.table = table);
@@ -247,7 +248,7 @@ export function registerIpcHandlers(dataPath) {
         return db.all(`
             SELECT id, title, 'places' as "table" FROM places WHERE title LIKE ? UNION ALL
             SELECT id, title, 'people' as "table" FROM people WHERE title LIKE ? UNION ALL
-            SELECT id, title, 'interactions' as "table" FROM interactions WHERE title LIKE ? UNION ALL
+            SELECT id, title, 'notes' as "table" FROM notes WHERE title LIKE ? UNION ALL
             SELECT id, title, 'custom_objects' as "table" FROM custom_objects WHERE title LIKE ? UNION ALL
             SELECT id, title, 'images' as "table" FROM images WHERE title LIKE ? UNION ALL
             SELECT id, title, 'files' as "table" FROM files WHERE title LIKE ? UNION ALL
@@ -304,7 +305,7 @@ export function registerIpcHandlers(dataPath) {
 
         // Handle generic objects
         const tableMap = {
-            place: 'places', person: 'people', interaction: 'interactions',
+            place: 'places', person: 'people', note: 'notes',
             custom_object: 'custom_objects', todo: 'todos'
         };
         const table = tableMap[type];
@@ -333,6 +334,8 @@ export function registerIpcHandlers(dataPath) {
             const newStatus = Number(value);
             if (newStatus === undefined || ![0, 1].includes(newStatus)) throw new Error('Invalid value for status');
             return db.run(`UPDATE todos SET status = ? WHERE id = ?`, newStatus, id).then(() => ({ success: true, newValue: newStatus }));
+        } else if (field === 'content' && table === 'notes') {
+            return db.run(`UPDATE notes SET content = ? WHERE id = ?`, value, id).then(() => ({ success: true, newValue: value }));
         }
         throw new Error('Invalid field for patching');
     });

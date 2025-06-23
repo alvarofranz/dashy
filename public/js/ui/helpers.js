@@ -8,7 +8,7 @@ export const getIconForTable = (table) => {
     const icons = {
         places: 'fa-map-marker-alt',
         people: 'fa-user',
-        interactions: 'fa-shuffle',
+        notes: 'fa-note-sticky',
         custom_objects: 'fa-tag',
         images: 'fa-image',
         files: 'fa-file-alt',
@@ -25,7 +25,8 @@ export const formatObjectType = (type) => {
         'files': 'Files',
         'place': 'Place',
         'person': 'Person',
-        'interaction': 'Interaction',
+        'note': 'Note',
+        'notes': 'Notes',
         'image': 'Image',
         'other_file': 'File',
         'custom_object': 'Custom Object',

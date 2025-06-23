@@ -21,10 +21,9 @@ async function generateFormFields(type, isModal = false) {
         case 'person':
             html += `<div class="form-group"><label for="${p}title">Name</label><input type="text" id="${p}title" name="title" required></div>`;
             break;
-        case 'interaction':
-            html += `<div class="form-group"><label for="${p}title">Description</label><textarea id="${p}title" name="title" required></textarea></div>`;
-            html += `<div class="form-group"><label for="${p}interaction_date">Date</label><input type="date" id="${p}interaction_date" name="interaction_date" value="${new Date().toISOString().slice(0,10)}" required></div>`;
-            html += `<div class="form-group"><label for="${p}mood">Mood (-100 to 100)</label><input type="range" id="${p}mood" name="mood" min="-100" max="100" value="0"></div>`;
+        case 'note':
+            html += `<div class="form-group"><label for="${p}title">Title</label><input type="text" id="${p}title" name="title" required></div>`;
+            html += `<div class="form-group"><label for="${p}content">Content</label><textarea id="${p}content" name="content"></textarea></div>`;
             break;
         case 'custom_object':
             html += `<div class="form-group"><label for="${p}title">Title</label><input type="text" id="${p}title" name="title" required></div>`;
@@ -33,7 +32,6 @@ async function generateFormFields(type, isModal = false) {
                         <input type="text" id="${p}object_type" name="object_type" class="custom-type-search-input" placeholder="Enter or select a type" required autocomplete="off">
                         <ul class="search-results-list custom-type-results"></ul>
                      </div>`;
-            html += `<div class="form-group"><label for="${p}mood">Mood (-100 to 100)</label><input type="range" id="${p}mood" name="mood" min="-100" max="100" value="0"></div>`;
             break;
         case 'todo':
             html += `<div class="form-group"><label for="${p}title">To-Do Item</label><input type="text" id="${p}title" name="title" required></div>`;
@@ -54,7 +52,7 @@ async function generateFormFields(type, isModal = false) {
             break;
     }
 
-    if (['place', 'person', 'interaction', 'custom_object', 'todo'].includes(type)) {
+    if (['place', 'person', 'note', 'custom_object', 'todo'].includes(type)) {
         html += `<div class="form-group"><label>Custom Details</label><ul class="kv-list"></ul><button type="button" class="add-kv-button button"><i class="fas fa-plus"></i> Add Detail</button></div>`;
     }
     return html;
@@ -125,7 +123,7 @@ export function renderAddLinkForm() {
             <button type="button" class="create-link-btn button" data-type="place" title="Create & Link Place"><i class="fas fa-map-marker-alt"></i></button>
             <button type="button" class="create-link-btn button" data-type="person" title="Create & Link Person"><i class="fas fa-user"></i></button>
             <button type="button" class="create-link-btn button" data-type="todo" title="Create & Link To-Do"><i class="fas fa-check-square"></i></button>
-            <button type="button" class="create-link-btn button" data-type="interaction" title="Create & Link Interaction"><i class="fas fa-shuffle"></i></button>
+            <button type="button" class="create-link-btn button" data-type="note" title="Create & Link Note"><i class="fas fa-note-sticky"></i></button>
             <button type="button" class="create-link-btn button" data-type="custom_object" title="Create & Link Custom Object"><i class="fas fa-tag"></i></button>
             <button type="button" class="create-link-btn button" data-type="image" title="Create & Link Image"><i class="fas fa-image"></i></button>
             <button type="button" class="create-link-btn button" data-type="other_file" title="Create & Link File"><i class="fas fa-file-alt"></i></button>

@@ -25,6 +25,12 @@ export function initializeEventListeners() {
 async function handleGlobalClick(e) {
     const target = e.target;
 
+    // --- Inline Editing ---
+    if (target.closest('.editable') && !target.closest('.inline-edit-control')) {
+        activateInlineEdit(target.closest('.editable'));
+        return;
+    }
+
     // --- File Selection (Electron specific) ---
     if(target.matches('.file-select-btn')) {
         e.preventDefault();
@@ -120,7 +126,6 @@ async function handleGlobalClick(e) {
         else if (target.closest('.custom-type-results > li')) { handleCustomTypeClick(target.closest('li')); }
         else if (target.closest('.unlink-btn')) { await handleUnlinkClick(target); }
         else if (target.closest('.delete-object-btn')) { await handleDeleteClick(target); }
-        else if (target.closest('.editable-title')) { activateInlineEdit(target.closest('.editable-title')); }
         else if (target.closest('.create-link-btn')) { renderOnTheFlyForm(target.closest('.create-link-btn').dataset.type); }
         else if (target.closest('.show-completed-todos-btn')) {
             const container = target.previousElementSibling;
@@ -168,7 +173,7 @@ async function handleGlobalSubmit(e) {
             });
 
             let expectedTable = type === 'person' ? 'people' : `${type}s`;
-            if (['image', 'other_file', 'custom_object'].includes(type)) expectedTable = `${type}s`;
+            if (['image', 'other_file', 'custom_object', 'note'].includes(type)) expectedTable = `${type}s`;
             if (type === 'custom_object') expectedTable = 'custom_objects';
             if (type === 'other_file') expectedTable = 'files';
 
@@ -196,6 +201,7 @@ async function handleGlobalSubmit(e) {
             if (type === 'person') expectedTable = 'people';
             if (type === 'custom_object') expectedTable = 'custom_objects';
             if (type === 'other_file') expectedTable = 'files';
+            if (type === 'note') expectedTable = 'notes';
 
             const allPrimaryItems = createdItems.filter(item => item.table === expectedTable);
 
@@ -303,11 +309,20 @@ async function handleContentPanelInput(e) {
 }
 
 function handleKeyDown(e) {
+    if (e.target.matches('.inline-edit-control')) {
+        if (e.key === 'Escape') {
+            cancelInlineEdit(e.target);
+        } else if (e.key === 'Enter' && e.target.tagName.toLowerCase() === 'input') {
+            e.preventDefault();
+            saveInlineEdit(e.target);
+        }
+        // For textareas, we don't save on Enter to allow for newlines.
+        return;
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
-        if (e.target.classList.contains('inline-edit-input')) { e.preventDefault(); e.target.blur(); }
         if (e.target.closest('.kv-edit-mode') && !e.target.matches('textarea')) { e.preventDefault(); saveKeyValueRow(e.target.closest('li')); }
     } else if (e.key === 'Escape') {
-        if (e.target.classList.contains('inline-edit-input')) e.target.blur();
         if (e.target.closest('.kv-edit-mode')) cancelEditKeyValueRow(e.target.closest('li'));
     }
 }
@@ -322,7 +337,7 @@ function handleFocusOut(e) {
         }, 150);
         return;
     }
-    if (e.target.matches('.inline-edit-input')) {
+    if (e.target.matches('.inline-edit-control')) {
         saveInlineEdit(e.target);
     }
     if (e.target.closest('.kv-edit-mode') && !e.target.closest('.kv-edit-mode').contains(e.relatedTarget)) {
@@ -431,39 +446,72 @@ async function handleDeleteClick(target) {
     }
 }
 
-function activateInlineEdit(span) {
-    if (span.querySelector('input')) return;
-    const originalText = span.textContent;
-    span.dataset.original = originalText;
-    span.innerHTML = `<input type="text" value="${originalText}" class="inline-edit-input">`;
-    const input = span.querySelector('input');
-    input.focus();
-    input.select();
+// --- Generic Inline Editing ---
+
+function activateInlineEdit(element) {
+    if (element.querySelector('.inline-edit-control')) return; // Already in edit mode
+
+    const originalText = element.textContent.trim() === 'Click to add content...' ? '' : element.textContent;
+    const editType = element.dataset.editType || 'input';
+
+    element.dataset.original = element.textContent;
+
+    let control;
+    if (editType === 'textarea') {
+        control = document.createElement('textarea');
+        control.className = 'inline-edit-control inline-edit-textarea';
+    } else {
+        control = document.createElement('input');
+        control.type = 'text';
+        control.className = 'inline-edit-control inline-edit-input';
+    }
+    control.value = originalText;
+
+    element.innerHTML = '';
+    element.appendChild(control);
+    control.focus();
+    if (control.select) control.select();
 }
 
-async function saveInlineEdit(input) {
-    const span = input.parentElement;
-    if (!span || !span.classList.contains('editable-title') || !span.closest('.object-view')) return;
+async function saveInlineEdit(control) {
+    const element = control.parentElement;
+    if (!element || !element.classList.contains('editable') || !element.dataset.original) return;
 
-    const { id, table } = span.closest('.object-view').dataset;
-    const newValue = input.value.trim();
-    const originalValue = span.dataset.original;
+    const { id, table } = element.closest('.object-view').dataset;
+    const field = element.dataset.field;
+    const newValue = control.value;
+    const originalValue = element.dataset.original;
 
-    span.innerHTML = originalValue; // Revert to span to avoid losing content on failed API call
+    delete element.dataset.original; // Prevent re-triggering save
 
-    if (newValue && newValue !== originalValue) {
+    if (newValue.trim() !== originalValue.trim()) {
         try {
-            const result = await api.updateObject(table, id, 'title', newValue);
-            span.textContent = result.newValue;
+            await api.updateObject(table, id, field, newValue);
+            if (field === 'content' && newValue.trim() === '') {
+                element.textContent = 'Click to add content...';
+            } else {
+                element.textContent = newValue;
+            }
         } catch (e) {
             console.error(e);
             alert(`Error: ${e.message}`);
-            span.textContent = originalValue; // Restore original on failure
+            element.textContent = originalValue; // Restore original on failure
         }
     } else {
-        span.textContent = originalValue;
+        element.textContent = originalValue; // Restore if no change
     }
 }
+
+function cancelInlineEdit(control) {
+    const element = control.parentElement;
+    if (element && element.dataset.original) {
+        element.textContent = element.dataset.original;
+        delete element.dataset.original;
+    }
+}
+
+
+// --- Key-Value Pair Editing ---
 
 function addKeyValueRow(target) {
     const container = target.closest('.form-group') || target.closest('.section') || target.closest('.form-container');

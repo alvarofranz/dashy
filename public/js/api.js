@@ -1,103 +1,117 @@
-const handleResponse = async (response) => {
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'An unknown error occurred' }));
-        throw new Error(error.error || `HTTP error! status: ${response.status}`);
-    }
-    return response.json();
-};
-
-export async function post(path, data) {
-    return fetch(`/api${path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    }).then(handleResponse);
-}
-
-export async function patch(path, data) {
-    return fetch(`/api${path}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    }).then(handleResponse);
-}
-
-export async function del(path) {
-    return fetch(`/api${path}`, {
-        method: 'DELETE'
-    }).then(handleResponse);
-}
+const api = window.electronAPI;
 
 export async function getBootstrapData() {
-    return fetch('/api/bootstrap').then(handleResponse);
+    return api.invoke('get:bootstrap');
 }
 
 export async function getObject(table, id) {
-    return fetch(`/api/object/${table}/${id}`).then(handleResponse);
+    return api.invoke('get:object', { table, id });
 }
 
 export async function getObjectsList(table, { limit = 20, offset = 0, filters = {} } = {}) {
-    let url;
     if (table === 'recent') {
-        url = `/api/recent?limit=${limit}&offset=${offset}`;
-    } else {
-        url = `/api/objects/${table}?limit=${limit}&offset=${offset}`;
-        if (filters.types && filters.types.length > 0) {
-            url += `&types=${encodeURIComponent(JSON.stringify(filters.types))}`;
-        }
+        return api.invoke('get:recent', { limit, offset });
     }
-    return fetch(url).then(handleResponse);
+    return api.invoke('get:objects', { table, limit, offset, filters });
 }
 
 export async function getCustomObjectTypes() {
-    return fetch('/api/custom-object-types').then(handleResponse);
+    return api.invoke('get:custom-object-types');
 }
 
 export async function createObject(type, formData) {
-    let body;
-    let headers = {};
-    if (['image', 'other_file'].includes(type)) {
-        body = formData; // FormData sets its own content-type
-    } else {
-        const data = Object.fromEntries(formData.entries());
+    const data = Object.fromEntries(formData.entries());
 
-        // Handle multi-key for key_values
-        const kvKeys = formData.getAll('kv_key');
-        const kvValues = formData.getAll('kv_value');
-        if (kvKeys.length > 0) {
-            data.key_values = {};
-            kvKeys.forEach((key, index) => {
-                if (key) data.key_values[key] = kvValues[index];
-            });
-            // FIX: Remove raw kv fields to prevent backend error
-            delete data.kv_key;
-            delete data.kv_value;
-        }
-
-        body = JSON.stringify(data);
-        headers['Content-Type'] = 'application/json';
+    // Handle multi-key for key_values from the form
+    const kvKeys = formData.getAll('kv_key');
+    const kvValues = formData.getAll('kv_value');
+    if (kvKeys.length > 0) {
+        data.key_values = {};
+        kvKeys.forEach((key, index) => {
+            if (key) data.key_values[key] = kvValues[index];
+        });
+        delete data.kv_key;
+        delete data.kv_value;
     }
-    return fetch(`/api/object/${type}`, { method: 'POST', headers, body }).then(handleResponse);
+
+    // MODIFIED: This is the fix.
+    // We check if filePaths exists and is a string. If so, we parse it
+    // from a JSON string back into a proper array before sending it to the main process.
+    if (data.filePaths && typeof data.filePaths === 'string') {
+        try {
+            data.filePaths = JSON.parse(data.filePaths);
+        } catch (e) {
+            console.error("Failed to parse filePaths JSON string:", e);
+            data.filePaths = []; // Default to empty array on error
+        }
+    }
+
+    return api.invoke('create:object', { type, data });
 }
 
 export async function searchObjects(term, limit = 10) {
     if (term.length < 2) return Promise.resolve([]);
-    return fetch(`/api/search?term=${encodeURIComponent(term)}&limit=${limit}`).then(handleResponse);
+    return api.invoke('search:objects', { term, limit });
 }
 
 export async function updateObject(table, id, field, value) {
-    return patch(`/object/${table}/${id}`, { field, value });
+    return api.invoke('update:object', { table, id, field, value });
 }
 
 export async function unlinkObjects(source, target) {
-    return post('/unlink', {
-        source_id: source.id,
-        source_table: source.table,
-        target_id: target.id,
-        target_table: target.table,
+    return api.invoke('unlink:objects', {
+        source_id: source.id, source_table: source.table,
+        target_id: target.id, target_table: target.table,
     });
 }
 
 export async function deleteObject(table, id) {
-    return del(`/object/${table}/${id}`);
+    return api.invoke('delete:object', { table, id });
+}
+
+// --- New/Modified specific to Electron ---
+
+export async function post(path, data) {
+    const channelMap = {
+        '/unlink': 'unlink:objects',
+        '/link': 'link:objects'
+    };
+    const channel = channelMap[path];
+    if (channel) {
+        return api.invoke(channel, data);
+    }
+    if (path.match(/\/object\/(.*?)\/(.*?)\/kv/)) {
+        const [, table, id] = path.match(/\/object\/(.*?)\/(.*?)\/kv/);
+        return api.invoke('add:kv', { table, id, ...data });
+    }
+    throw new Error(`Unknown API POST path: ${path}`);
+}
+
+export async function patch(path, data) {
+    if (path.match(/\/object\/(.*?)\/(.*?)/)) {
+        const [, table, id] = path.match(/\/object\/(.*?)\/(.*?)/);
+        return api.invoke('update:object', { table, id, ...data });
+    }
+    if (path.match(/\/kv\/(\d+)/)) {
+        const [, id] = path.match(/\/kv\/(\d+)/);
+        return api.invoke('update:kv', { id, ...data });
+    }
+    throw new Error(`Unknown API PATCH path: ${path}`);
+}
+
+export async function del(path) {
+    if (path.match(/\/object\/(.*?)\/(.*?)/)) {
+        const [, table, id] = path.match(/\/object\/(.*?)\/(.*?)/);
+        return api.invoke('delete:object', { table, id });
+    }
+    if (path.match(/\/kv\/(\d+)/)) {
+        const [, id] = path.match(/\/kv\/(\d+)/);
+        return api.invoke('delete:kv', { id });
+    }
+    throw new Error(`Unknown API DELETE path: ${path}`);
+}
+
+
+export async function selectFiles(options) {
+    return api.invoke('dialog:open-files', options);
 }

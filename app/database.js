@@ -4,84 +4,36 @@ import path from 'path';
 
 let db;
 
-export async function initDatabase() {
+export async function initDatabase(dataPath) {
+    if (db) {
+        return db;
+    }
+    const dbPath = path.join(dataPath, 'dashy.sqlite3');
+    console.log(`[Database] Initializing database at: ${dbPath}`);
+
     db = await open({
-        filename: path.resolve('./data/dashy.sqlite3'),
+        filename: dbPath,
         driver: sqlite3.Database
     });
 
-    await db.exec(`
-        PRAGMA foreign_keys = ON;
+    await db.exec(`PRAGMA foreign_keys = ON;`);
 
-        CREATE TABLE IF NOT EXISTS places (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            lat REAL NOT NULL,
-            lng REAL NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS people (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS images (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            file_path TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS files (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            file_path TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS interactions (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            mood INTEGER NOT NULL,
-            interaction_date DATE NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS custom_objects (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            object_type TEXT NOT NULL,
-            mood INTEGER NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS todos (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            status INTEGER NOT NULL DEFAULT 0, -- 0 = incomplete, 1 = complete
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS key_values (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            object_id TEXT NOT NULL,
-            object_table TEXT NOT NULL,
-            key TEXT NOT NULL,
-            value TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS links (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_id TEXT NOT NULL,
-            source_table TEXT NOT NULL,
-            target_id TEXT NOT NULL,
-            target_table TEXT NOT NULL,
-            UNIQUE(source_id, source_table, target_id, target_table)
-        );
-    `);
+    // Initial schema creation is now part of migrations
+    // It will be run if the user_version is 0
     return db;
 }
 
-export const getDb = () => db;
+export async function closeDb() {
+    if (db) {
+        await db.close();
+        db = null;
+        console.log('[Database] Connection closed.');
+    }
+}
+
+export const getDb = () => {
+    if (!db) {
+        throw new Error("Database has not been initialized.");
+    }
+    return db;
+};

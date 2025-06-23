@@ -42,13 +42,12 @@ async function generateFormFields(type, isModal = false) {
         case 'image':
         case 'other_file':
             const isImage = type === 'image';
-            const accept = isImage ? 'image/jpeg,image/png,image/webp,image/gif,image/avif' : '';
             const labelText = isImage ? 'Select Image(s)' : 'Select File(s)';
+            // MODIFIED: Replaced <input type="file"> with a button that will trigger the Electron dialog
             html += `<div class="form-group">
                         <label>${labelText}</label>
                         <div class="custom-file-input-container">
-                            <input type="file" name="files" id="${p}files" class="custom-file-input" accept="${accept}" multiple required>
-                            <label for="${p}files" class="button"><i class="fas fa-upload"></i> Choose Files</label>
+                            <button type="button" class="button file-select-btn" data-file-type="${type}"><i class="fas fa-upload"></i> Choose Files</button>
                             <ul class="file-list"></ul>
                         </div>
                      </div>`;

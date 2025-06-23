@@ -25,6 +25,29 @@ export function initializeEventListeners() {
 async function handleGlobalClick(e) {
     const target = e.target;
 
+    // --- File Selection (Electron specific) ---
+    if(target.matches('.file-select-btn')) {
+        e.preventDefault();
+        const isImage = target.dataset.fileType === 'image';
+        const options = {
+            properties: ['openFile', 'multiSelections'],
+            filters: isImage
+                ? [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif', 'heic', 'heif'] }]
+                : [{ name: 'All Files', extensions: ['*'] }]
+        };
+        const filePaths = await api.selectFiles(options);
+        if (filePaths.length > 0) {
+            // Store paths on the button's dataset and update the UI file list
+            target.dataset.selectedFiles = JSON.stringify(filePaths);
+            const fileListEl = target.parentElement.querySelector('.file-list');
+            if (fileListEl) {
+                fileListEl.innerHTML = filePaths.map(p => `<li>${p.split(/[/\\]/).pop()}</li>`).join('');
+            }
+        }
+        return;
+    }
+
+
     // --- Actions that can happen anywhere (main panel or modal) ---
     if (target.closest('.add-kv-button')) {
         addKeyValueRow(target);
@@ -117,6 +140,19 @@ async function handleGlobalSubmit(e) {
     const type = form.dataset.type;
     const formData = new FormData(form);
 
+    // --- Electron-specific file handling ---
+    if (type === 'image' || type === 'other_file') {
+        const fileSelectBtn = form.querySelector('.file-select-btn');
+        const filePaths = fileSelectBtn.dataset.selectedFiles ? JSON.parse(fileSelectBtn.dataset.selectedFiles) : [];
+        if (filePaths.length === 0) {
+            alert('Please select one or more files.');
+            return;
+        }
+        // This is a bit of a workaround to fit into the existing createObject structure.
+        // We add the filePaths to the formData object which is then read by api.js
+        formData.append('filePaths', JSON.stringify(filePaths));
+    }
+
     // The main 'Add New' form
     if (form.id === 'add-form') {
         const links = getSelectedLinks(form.querySelector('.add-link-form'));
@@ -198,18 +234,6 @@ async function handleGlobalChange(e) {
         const newStatus = target.checked ? 1 : 0;
         await api.updateObject('todos', id, 'status', newStatus);
         target.closest('.list-item').querySelector('.item-title').classList.toggle('completed', target.checked);
-    } else if (target.matches('.custom-file-input')) { // Custom file input
-        const fileListEl = target.parentElement.querySelector('.file-list');
-        if (!fileListEl) return;
-
-        fileListEl.innerHTML = '';
-        if (target.files.length > 0) {
-            for (const file of target.files) {
-                const li = document.createElement('li');
-                li.textContent = file.name;
-                fileListEl.appendChild(li);
-            }
-        }
     }
 }
 

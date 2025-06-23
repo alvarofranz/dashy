@@ -145,6 +145,12 @@ export async function loadMoreItems() {
     }
 }
 
+// Helper to create the correct URL for user data files
+const createDataUrl = (filePath) => {
+    // filePath from DB is like '/images/foo.jpg'. We need to remove the leading '/'
+    return `dashy-data://${filePath.substring(1)}`;
+}
+
 function appendItemsToListView(items, type) {
     const list = contentPanel.querySelector('.items-list-view');
     const loader = contentPanel.querySelector('.loader');
@@ -179,7 +185,9 @@ function appendItemsToListView(items, type) {
         }
 
         if(isImageView) {
-            return `<li class="list-item" data-id="${item.id}" data-table="${item.table}"><img src="/data${item.file_path}" alt="${item.title}" loading="lazy"></li>`
+            // MODIFIED: Use the custom protocol for image src
+            const imageUrl = createDataUrl(item.file_path);
+            return `<li class="list-item" data-id="${item.id}" data-table="${item.table}"><img src="${imageUrl}" alt="${item.title}" loading="lazy"></li>`
         }
 
         return `
@@ -265,9 +273,10 @@ export async function renderObject(table, id) {
                 sectionContent = `<ul class="links-list">${listHtml}</ul>`;
 
             } else if (sectionKey === 'images') {
+                // MODIFIED: Use the custom protocol for linked image sources
                 const imageItemsHtml = items.map(l =>
                     `<li class="link-item" data-id="${l.id}" data-table="${l.table}">
-                        <img src="/data${l.file_path}" alt="${l.title}" loading="lazy">
+                        <img src="${createDataUrl(l.file_path)}" alt="${l.title}" loading="lazy">
                         <button class="unlink-btn action-button" title="Unlink Item"><i class="fas fa-times"></i></button>
                     </li>`
                 ).join('');
@@ -316,11 +325,14 @@ export async function renderObject(table, id) {
 
         const kvHtml = object.key_values.map(kv => `<li data-kv-id="${kv.id}"><span class="key">${kv.key}</span><span class="value">${kv.value}</span><div class="actions"><button class="edit-kv-button action-button"><i class="fas fa-pencil-alt"></i></button><button class="delete-kv-button action-button"><i class="fas fa-trash"></i></button></div></li>`).join('');
         const objectTypeDisplay = (table === 'custom_objects' && object.object_type) ? `<span class="object-type-display">${formatObjectType(object.object_type)}</span>` : '';
-        const imagePreview = (table === 'images') ? `<img src="/data${object.file_path}" class="image-preview" alt="${object.title}">` : '';
+
+        // MODIFIED: Use the custom protocol for the main image preview and download link
+        const imagePreview = (table === 'images') ? `<img src="${createDataUrl(object.file_path)}" class="image-preview" alt="${object.title}">` : '';
+        const downloadLink = (table === 'files') ? `<a href="${createDataUrl(object.file_path)}" download="${object.title}" class="button"><i class="fas fa-download"></i> Download</a>` : '';
 
         const headerActionsHtml = `
             <div class="header-actions" style="display:flex; gap:0.5rem;">
-                 ${table === 'files' ? `<a href="/data${object.file_path}" download="${object.title}" class="button"><i class="fas fa-download"></i> Download</a>` : ''}
+                 ${downloadLink}
                  <button class="delete-object-btn button button-danger" title="Delete Object"><i class="fas fa-trash"></i></button>
             </div>`;
 

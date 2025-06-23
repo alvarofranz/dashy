@@ -58,8 +58,8 @@ export function removeTempMarker() {
 async function bootstrapApp() {
     try {
         const data = await api.getBootstrapData();
-        data.places.forEach(place => addMarkerToMap(place));
-        if (data.hasObjects) {
+        if(data && data.places) data.places.forEach(place => addMarkerToMap(place));
+        if (data && data.hasObjects) {
             renderDashboardView();
         } else {
             renderWelcomeMessage();
@@ -94,6 +94,38 @@ function removeMarkerFromMap(placeId) {
     }
 }
 
+// --- Update Notification ---
+function showUpdateNotification(updateInfo) {
+    let container = document.getElementById('update-notification-banner');
+    if (container) {
+        container.remove();
+    }
+    container = document.createElement('div');
+    container.id = 'update-notification-banner';
+    container.style.cssText = 'position: fixed; top: 10px; right: 10px; background-color: var(--accent-secondary); color: white; padding: 15px; border-radius: var(--radius-md); z-index: 9999; box-shadow: var(--shadow-lg); max-width: 350px;';
+
+    const releaseNotesHtml = updateInfo.releaseNotes ? `<p style="margin: 5px 0 15px; font-size: 0.9em; opacity: 0.9;">${updateInfo.releaseNotes}</p>` : '';
+
+    container.innerHTML = `
+        <h4 style="margin: 0 0 5px; font-weight: 600;">Update Available!</h4>
+        <p style="margin:0;">Version ${updateInfo.version} is ready to download.</p>
+        ${releaseNotesHtml}
+        <button id="download-update-btn" class="button button-primary" style="margin-right: 10px;">Download</button>
+        <button id="dismiss-update-btn" class="button" style="background:none; border: 1px solid white;">Dismiss</button>
+    `;
+    document.body.appendChild(container);
+
+    document.getElementById('download-update-btn').addEventListener('click', () => {
+        window.electronAPI.invoke('shell:open-external', updateInfo.url);
+        container.remove();
+    });
+
+    document.getElementById('dismiss-update-btn').addEventListener('click', () => {
+        container.remove();
+    });
+}
+
+
 // --- App Start ---
 document.addEventListener('DOMContentLoaded', () => {
     initMap();
@@ -110,4 +142,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     document.getElementById('app-title').addEventListener('click', renderDashboardView);
     document.querySelector('.nav-btn[data-type="dashboard"]').classList.add('active');
+
+    // Listen for update notifications from the main process
+    if (window.electronAPI) {
+        window.electronAPI.on('update-available', (updateInfo) => {
+            showUpdateNotification(updateInfo);
+        });
+    }
 });

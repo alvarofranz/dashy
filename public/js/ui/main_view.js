@@ -28,7 +28,7 @@ export function renderWelcomeMessage() {
     window.dashy.appState.currentView = { type: 'welcome' };
     contentPanel.innerHTML = `
         <div class="welcome-message">
-            <i class="fas fa-meteor"></i>
+            <i class="fas fa-spaghetti-monster-flying"></i>
             <h2>Welcome to Dashy</h2>
             <p>This is your personal life dashboard. To get started, try adding a Place, a Person, or any other item using the navigation below.</p>
         </div>`;

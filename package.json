@@ -1,26 +1,20 @@
 {
   "name": "dashy",
   "version": "1.0.0",
-  "description": "A gamified life dashboard, now on your desktop.",
+  "description": "A dashboard to organize your life.",
   "main": "electron-main.js",
   "type": "module",
   "scripts": {
     "start": "electron .",
     "electron:dev": "nodemon --exec \"electron .\"",
     "pack": "electron-builder",
-    "postinstall": "electron-rebuild"
+    "postinstall": "electron-builder install-app-deps"
   },
   "engines": {
     "node": "20.3.0",
-    "npm": "9.6.7"
+    "npm":  "9.6.7"
   },
-  "keywords": [
-    "leaflet",
-    "electron",
-    "sqlite",
-    "sharp"
-  ],
-  "author": "",
+  "keywords": [ "leaflet", "electron", "sqlite", "sharp" ],
   "license": "ISC",
   "dependencies": {
     "axios": "^1.7.2",
@@ -32,10 +26,17 @@
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7"
   },
+  "optionalDependencies": {
+    "@img/sharp-libvips-darwin-arm64": "^1.1.0",
+    "@img/sharp-libvips-darwin-x64":   "^1.1.0",
+    "@img/sharp-libvips-win32-x64":    "^1.1.0",
+    "@img/sharp-libvips-win32-arm64":  "^1.1.0",
+    "@img/sharp-libvips-linux-x64":     "^1.1.0",
+    "@img/sharp-libvips-linuxmusl-x64": "^1.1.0"
+  },
   "devDependencies": {
     "electron": "^31.0.1",
     "electron-builder": "^24.13.3",
-    "@electron/rebuild": "^3.4.1",
     "nodemon": "^3.1.3"
   },
   "build": {
@@ -48,31 +49,20 @@
       "public/**/*",
       "node_modules/**/*"
     ],
-    "directories": {
-      "buildResources": "build",
-      "output": "dist"
-    },
-    "npmRebuild": true,
+    "directories": { "buildResources": "build", "output": "dist" },
+    "npmRebuild": false,
     "win": {
       "target": "nsis",
-      "icon": "build/icon.ico"
+      "icon": "build/icon.png"
     },
     "mac": {
       "target": "dmg",
-      "icon": "build/icon.icns"
+      "icon": "build/icon.png"
     },
     "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ],
+      "target": [ "AppImage", "deb" ],
       "icon": "build/icons",
       "category": "Office"
-    },
-    "docker": {
-      "linux": [
-        "libheif-dev"
-      ]
     }
   }
 }

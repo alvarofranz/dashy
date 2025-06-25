@@ -22,3 +22,6 @@ files-in-prompt.txt
 prompt-start.txt
 prompt-end.txt
 prompt.txt
+
+# Dist
+/dist

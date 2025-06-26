@@ -1,17 +1,17 @@
 import * as api from '../api.js';
-import { contentPanel, debounce, getIconForTable, closeModal, formatObjectType } from './helpers.js';
+import { contentPanel, debounce, getIconForTable, closeModal, formatIdString, formatStringToId } from './helpers.js';
 import { renderAddForm, addLinkToForm, getSelectedLinks, renderOnTheFlyForm } from './forms.js';
 import { renderObject, renderListView, loadMoreItems, renderDashboardView, loadFilteredItems, toggleCustomObjectFilter } from './main_view.js';
 
 export function initializeEventListeners() {
+    document.body.addEventListener('mousedown', handleGlobalMouseDown);
     document.body.addEventListener('click', handleGlobalClick);
     document.body.addEventListener('submit', handleGlobalSubmit);
     document.body.addEventListener('change', handleGlobalChange);
-    document.body.addEventListener('focusin', handleFocusIn); // For custom dropdown
+    document.body.addEventListener('focusin', handleFocusIn); // For custom dropdowns
+    document.body.addEventListener('keydown', handleKeyDown);
+    document.body.addEventListener('focusout', handleFocusOut);
 
-    contentPanel.addEventListener('input', debounce(handleContentPanelInput, 300));
-    contentPanel.addEventListener('keydown', handleKeyDown);
-    contentPanel.addEventListener('focusout', handleFocusOut);
     contentPanel.addEventListener('scroll', handleInfiniteScroll);
 
     window.addEventListener('map-clicked-for-form', handleMapClickForForm);
@@ -20,6 +20,20 @@ export function initializeEventListeners() {
             closeModal();
         }
     });
+}
+
+async function handleGlobalMouseDown(e) {
+    const target = e.target;
+
+    // Handle suggestion list clicks with mousedown to prevent focusout race conditions.
+    // This fires before the input's blur/focusout event.
+    if (target.closest('.custom-type-results > li')) {
+        e.preventDefault(); // Prevent input from losing focus and triggering premature actions.
+        handleCustomTypeClick(target.closest('li'));
+    } else if (target.closest('.kv-key-results > li')) {
+        e.preventDefault(); // Prevent input from losing focus and triggering premature actions.
+        handleKvKeyClick(target.closest('li'));
+    }
 }
 
 async function handleGlobalClick(e) {
@@ -84,7 +98,7 @@ async function handleGlobalClick(e) {
 
     // --- Modal-specific closing actions ---
     if (window.dashy.appState.isModalOpen) {
-        if (target.closest('.cancel-modal-btn')) {
+        if (target.closest('.cancel-modal-btn') || target.id === 'modal-overlay') {
             closeModal();
         }
         return;
@@ -93,7 +107,7 @@ async function handleGlobalClick(e) {
     // --- Actions that ONLY happen when modal is closed ---
     const currentlyEditingKv = document.querySelector('#app-panel-content .kv-edit-mode');
     if (currentlyEditingKv && !currentlyEditingKv.contains(target)) {
-        saveKeyValueRow(currentlyEditingKv);
+        await saveKeyValueRow(currentlyEditingKv);
     }
 
     if (target.closest('.app-panel-header') || target.closest('#bottom-nav')) {
@@ -107,7 +121,9 @@ async function handleGlobalClick(e) {
         return;
     }
 
-    if (target.closest('#app-panel-content')) {
+    // Event delegation for dynamically added content
+    const contentContainer = target.closest('#app-panel-content, #modal-content');
+    if (contentContainer) {
         if (target.closest('.filter-tag')) {
             const tag = target.closest('.filter-tag');
             tag.classList.toggle('active');
@@ -123,7 +139,6 @@ async function handleGlobalClick(e) {
         }
         else if (target.closest('.list-item') && !target.closest('.todo-list-status')) { renderObject(target.closest('.list-item').dataset.table, target.closest('.list-item').dataset.id); }
         else if (target.closest('.search-results-list > li')) { await handleSearchItemClick(target.closest('li')); }
-        else if (target.closest('.custom-type-results > li')) { handleCustomTypeClick(target.closest('li')); }
         else if (target.closest('.unlink-btn')) { await handleUnlinkClick(target); }
         else if (target.closest('.delete-object-btn')) { await handleDeleteClick(target); }
         else if (target.closest('.create-link-btn')) { renderOnTheFlyForm(target.closest('.create-link-btn').dataset.type); }
@@ -247,17 +262,24 @@ async function handleFocusIn(e) {
     if (e.target.matches('.custom-type-search-input')) {
         const input = e.target;
         const resultsList = input.nextElementSibling;
-        const allTypes = await api.getCustomObjectTypes();
-        resultsList.innerHTML = allTypes.map(t => `<li data-type-name="${t}">${formatObjectType(t)}</li>`).join('');
+        let allTypes = await api.getCustomObjectTypes();
+        resultsList.innerHTML = allTypes.slice(0, 6).map(t => `<li data-type-name="${t}">${formatIdString(t)}</li>`).join('');
+        resultsList.style.display = 'block';
+    }
+    if (e.target.matches('.kv-key-search-input')) {
+        const input = e.target;
+        const resultsList = input.nextElementSibling;
+        let allKeys = await api.getKvKeys();
+        resultsList.innerHTML = allKeys.slice(0, 6).map(k => `<li data-key-name="${k}">${formatIdString(k)}</li>`).join('');
         resultsList.style.display = 'block';
     }
 }
 
 async function handleContentPanelInput(e) {
-    if (e.target.matches('#dashboard-search-input')) {
-        const input = e.target;
+    const target = e.target;
+    if (target.matches('#dashboard-search-input')) {
         const resultsList = document.getElementById('dashboard-search-results');
-        const term = input.value.trim();
+        const term = target.value.trim();
 
         if (term.length < 3) {
             resultsList.innerHTML = '';
@@ -265,10 +287,11 @@ async function handleContentPanelInput(e) {
             return;
         }
 
-        const results = await api.searchObjects(term, 25);
+        let results = await api.searchObjects(term, 25);
         resultsList.style.display = 'block';
         if (results.length > 0) {
             resultsList.innerHTML = results
+                .slice(0, 6)
                 .map(r => `<li data-id="${r.id}" data-table="${r.table}" data-title="${r.title}"><i class="fas ${getIconForTable(r.table)}"></i> ${r.title}</li>`).join('');
         } else {
             resultsList.innerHTML = '<li style="padding: 0.75rem; color: var(--text-tertiary);">No results found</li>';
@@ -276,11 +299,11 @@ async function handleContentPanelInput(e) {
         return;
     }
 
-    if (e.target.matches('.link-search-input')) {
-        const searchTerm = e.target.value;
-        const resultsList = e.target.nextElementSibling;
-        const objectView = e.target.closest('.object-view');
-        const mainForm = e.target.closest('#add-form');
+    if (target.matches('.link-search-input')) {
+        const searchTerm = target.value;
+        const resultsList = target.nextElementSibling;
+        const objectView = target.closest('.object-view');
+        const mainForm = target.closest('#add-form');
         let existingLinks = [];
         if (objectView) {
             existingLinks = Array.from(objectView.querySelectorAll('.links-list .link-item, .linked-items-preview .linked-item-tag')).map(el => el.dataset.linkId || `${el.dataset.table}:${el.dataset.id}`);
@@ -291,65 +314,136 @@ async function handleContentPanelInput(e) {
         }
 
         if (searchTerm.length < 2) { resultsList.innerHTML = ''; return; }
-        const results = await api.searchObjects(searchTerm);
+        let results = await api.searchObjects(searchTerm);
         resultsList.innerHTML = results
             .filter(r => !existingLinks.includes(`${r.table}:${r.id}`))
+            .slice(0, 6)
             .map(r => `<li data-id="${r.id}" data-table="${r.table}" data-title="${r.title}"><i class="fas ${getIconForTable(r.table)}"></i> ${r.title}</li>`).join('');
-    } else if (e.target.matches('.custom-type-search-input')) {
-        const input = e.target;
-        const searchTerm = input.value.toLowerCase();
-        const resultsList = input.nextElementSibling;
+    } else if (target.matches('.custom-type-search-input')) {
+        const searchTerm = target.value.toLowerCase();
+        const resultsList = target.nextElementSibling;
 
-        const allTypes = await api.getCustomObjectTypes();
-        const filteredTypes = searchTerm ? allTypes.filter(t => t.toLowerCase().includes(searchTerm)) : allTypes;
+        let allTypes = await api.getCustomObjectTypes();
+        const filteredTypes = searchTerm ? allTypes.filter(t => formatIdString(t).toLowerCase().includes(searchTerm)) : allTypes;
 
-        resultsList.innerHTML = filteredTypes.map(t => `<li data-type-name="${t}">${formatObjectType(t)}</li>`).join('');
+        resultsList.innerHTML = filteredTypes.slice(0, 6).map(t => `<li data-type-name="${t}">${formatIdString(t)}</li>`).join('');
         resultsList.style.display = filteredTypes.length > 0 ? 'block' : 'none';
+    } else if (target.matches('.kv-key-search-input')) {
+        const searchTerm = target.value.toLowerCase();
+        const resultsList = target.nextElementSibling;
+
+        let allKeys = await api.getKvKeys();
+        const filteredKeys = searchTerm ? allKeys.filter(k => formatIdString(k).toLowerCase().includes(searchTerm)) : allKeys;
+
+        resultsList.innerHTML = filteredKeys.slice(0, 6).map(k => `<li data-key-name="${k}">${formatIdString(k)}</li>`).join('');
+        resultsList.style.display = filteredKeys.length > 0 ? 'block' : 'none';
     }
 }
 
-function handleKeyDown(e) {
-    if (e.target.matches('.inline-edit-control')) {
-        if (e.key === 'Escape') {
-            cancelInlineEdit(e.target);
-        } else if (e.key === 'Enter' && e.target.tagName.toLowerCase() === 'input') {
+function handleSuggestionNav(e) {
+    const resultsList = e.target.nextElementSibling;
+    const items = Array.from(resultsList.children);
+    if (items.length === 0 || resultsList.style.display === 'none') return;
+
+    let activeItem = resultsList.querySelector('li.active');
+    let activeIndex = activeItem ? items.indexOf(activeItem) : -1;
+
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        activeIndex = (activeIndex + 1) % items.length;
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        activeIndex = (activeIndex - 1 + items.length) % items.length;
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+        if (activeItem) {
             e.preventDefault();
-            saveInlineEdit(e.target);
+            // Simulate the mousedown/click action
+            if (e.target.matches('.custom-type-search-input')) {
+                handleCustomTypeClick(activeItem);
+            } else if (e.target.matches('.kv-key-search-input')) {
+                handleKvKeyClick(activeItem);
+            }
         }
-        // For textareas, we don't save on Enter to allow for newlines.
+        return; // Exit after selection
+    } else if (e.key === 'Escape') {
+        resultsList.style.display = 'none';
+    } else {
+        return; // Not a navigation key we're interested in
+    }
+
+    if (activeItem) activeItem.classList.remove('active');
+
+    const newActiveItem = items[activeIndex];
+    newActiveItem.classList.add('active');
+    newActiveItem.scrollIntoView({ block: 'nearest' });
+}
+
+function handleKeyDown(e) {
+    const target = e.target;
+
+    if (target.matches('.custom-type-search-input') || target.matches('.kv-key-search-input')) {
+        handleSuggestionNav(e);
+        if (['ArrowUp', 'ArrowDown', 'Enter', 'Tab', 'Escape'].includes(e.key)) return;
+    }
+
+    if (target.matches('.inline-edit-control')) {
+        if (e.key === 'Escape') {
+            cancelInlineEdit(target);
+        } else if (e.key === 'Enter' && target.tagName.toLowerCase() === 'input') {
+            e.preventDefault();
+            saveInlineEdit(target);
+        }
         return;
     }
 
     if (e.key === 'Enter' && !e.shiftKey) {
-        if (e.target.closest('.kv-edit-mode') && !e.target.matches('textarea')) { e.preventDefault(); saveKeyValueRow(e.target.closest('li')); }
+        if (target.closest('.kv-edit-mode') && !target.matches('textarea')) {
+            e.preventDefault();
+            saveKeyValueRow(target.closest('li'));
+        }
     } else if (e.key === 'Escape') {
-        if (e.target.closest('.kv-edit-mode')) cancelEditKeyValueRow(e.target.closest('li'));
+        if (target.closest('.kv-edit-mode')) cancelEditKeyValueRow(target.closest('li'));
     }
 }
 
 function handleFocusOut(e) {
-    if (e.target.matches('#dashboard-search-input')) {
+    const target = e.target;
+    // This function hides dropdown lists if the user clicks away.
+    const hideList = (list) => {
         setTimeout(() => {
-            const resultsList = document.getElementById('dashboard-search-results');
-            if (resultsList && !resultsList.matches(':hover')) {
-                resultsList.style.display = 'none';
+            if (list && !list.matches(':hover')) {
+                list.style.display = 'none';
             }
         }, 150);
+    };
+
+    if (target.matches('#dashboard-search-input')) {
+        hideList(document.getElementById('dashboard-search-results'));
         return;
     }
-    if (e.target.matches('.inline-edit-control')) {
-        saveInlineEdit(e.target);
+    if (target.matches('.inline-edit-control')) {
+        saveInlineEdit(target);
     }
-    if (e.target.closest('.kv-edit-mode') && !e.target.closest('.kv-edit-mode').contains(e.relatedTarget)) {
-        saveKeyValueRow(e.target.closest('.kv-edit-mode'));
+    if (target.matches('.custom-type-search-input') || target.matches('.kv-key-search-input')) {
+        hideList(target.nextElementSibling);
     }
-    if (e.target.matches('.custom-type-search-input')) {
+
+    const editingRow = target.closest('.kv-edit-mode');
+    if (editingRow) {
+        // If the focusout is due to our explicit selection logic, a flag will be set. Ignore it.
+        if (editingRow.dataset.ignoreFocusOut === 'true') {
+            return;
+        }
+
+        // Defer the check to allow the browser to update the activeElement.
+        // This robustly handles auto-saving when focus truly leaves the component.
         setTimeout(() => {
-            const resultsList = e.target.nextElementSibling;
-            if (resultsList && !resultsList.matches(':hover')) {
-                resultsList.style.display = 'none';
+            if (editingRow.parentElement && !editingRow.contains(document.activeElement)) {
+                if (editingRow.classList.contains('kv-edit-mode')) {
+                    saveKeyValueRow(editingRow);
+                }
             }
-        }, 150);
+        }, 50);
     }
 }
 
@@ -395,11 +489,6 @@ async function handleSearchItemClick(li) {
         return;
     }
 
-    if (li.closest('.custom-type-results')) {
-        handleCustomTypeClick(li);
-        return;
-    }
-
     const linkForm = li.closest('.add-link-form');
     const objectView = li.closest('.object-view');
     const target = { id: li.dataset.id, table: li.dataset.table, title: li.dataset.title };
@@ -418,13 +507,57 @@ async function handleSearchItemClick(li) {
 function handleCustomTypeClick(li) {
     const container = li.closest('.custom-type-search-container');
     const input = container.querySelector('.custom-type-search-input');
-    const resultsList = li.parentElement; // Get a reference to the parent (the <ul>)
+    const resultsList = li.parentElement;
+    const form = li.closest('form');
 
-    input.value = li.dataset.typeName; // Set the input value
+    const editingElement = form || li.closest('.kv-edit-mode');
+    editingElement.dataset.ignoreFocusOut = 'true';
 
-    resultsList.innerHTML = ''; // Clear the list
-    resultsList.style.display = 'none'; // Hide the list
+    input.value = formatIdString(li.dataset.typeName);
+    resultsList.innerHTML = '';
+    resultsList.style.display = 'none';
+
+    // Move focus away to the next logical element for better UX
+    if (form) {
+        const inputs = Array.from(form.querySelectorAll('input:not([type=hidden]), textarea, button'));
+        const currentIndex = inputs.findIndex(el => el === input);
+        if (currentIndex > -1 && currentIndex < inputs.length - 1) {
+            inputs[currentIndex + 1].focus();
+        }
+    }
+
+    setTimeout(() => delete editingElement.dataset.ignoreFocusOut, 50);
 }
+
+function handleKvKeyClick(li) {
+    const editingRow = li.closest('li.kv-edit-mode');
+    if (!editingRow) return;
+
+    const container = li.closest('.kv-key-search-container');
+    const input = container.querySelector('.kv-key-search-input');
+    const resultsList = li.parentElement;
+
+    // Set a flag to prevent focusout from saving prematurely
+    editingRow.dataset.ignoreFocusOut = 'true';
+
+    input.value = li.textContent; // The text content is already formatted
+    resultsList.innerHTML = '';
+    resultsList.style.display = 'none';
+
+    // Move focus to the next input for a smoother workflow
+    const valueInput = editingRow.querySelector('.value-input');
+    if (valueInput) {
+        // Remove the flag once focus is successful
+        valueInput.addEventListener('focus', () => {
+            delete editingRow.dataset.ignoreFocusOut;
+        }, { once: true });
+        valueInput.focus();
+    } else {
+        // If there's no next input, clean up the flag
+        delete editingRow.dataset.ignoreFocusOut;
+    }
+}
+
 
 async function handleUnlinkClick(target) {
     const source = target.closest('.object-view').dataset;
@@ -519,58 +652,84 @@ function addKeyValueRow(target) {
     if (!list || list.querySelector('.kv-edit-mode.new-kv')) return;
     const li = document.createElement('li');
     li.className = 'kv-edit-mode new-kv';
-    li.innerHTML = `<input type="text" class="key-input" placeholder="Key">
-                    <input type="text" class="value-input" placeholder="Value">
-                    <div class="actions"><button type="button" class="save-kv-button action-button" title="Save"><i class="fas fa-check"></i></button></div>`;
+    li.innerHTML = `
+        <div class="kv-key-search-container">
+            <input type="text" class="kv-key-search-input" placeholder="Key" autocomplete="off">
+            <ul class="search-results-list kv-key-results"></ul>
+        </div>
+        <input type="text" class="value-input" placeholder="Value">
+        <div class="actions">
+            <button type="button" class="save-kv-button action-button" title="Save"><i class="fas fa-check"></i></button>
+        </div>`;
     list.appendChild(li);
-    li.querySelector('.key-input').focus();
+    li.querySelector('.kv-key-search-input').focus();
 }
 
 function editKeyValueRow(li) {
-    if (document.querySelector('.kv-edit-mode')) return;
-    const key = li.querySelector('.key').textContent;
+    const otherEditingRow = document.querySelector('.kv-edit-mode');
+    if (otherEditingRow && otherEditingRow !== li) {
+        // Auto-save the other row first
+        saveKeyValueRow(otherEditingRow);
+        // If save failed for some reason, don't open another for editing
+        if (document.querySelector('.kv-edit-mode')) return;
+    };
+    const displayKey = li.querySelector('.key').textContent;
     const value = li.querySelector('.value').textContent;
     li.classList.add('kv-edit-mode');
-    li.dataset.originalKey = key;
-    li.dataset.originalValue = value;
-    li.innerHTML = `<input type="text" class="key-input" value="${key}">
-                    <input type="text" class="value-input" value="${value}">
-                    <div class="actions"><button type="button" class="save-kv-button action-button" title="Save"><i class="fas fa-check"></i></button></div>`;
-    li.querySelector('.key-input').focus();
+    li.dataset.originalValue = value; // originalKey is already on the dataset from renderObject
+    li.innerHTML = `
+        <div class="kv-key-search-container">
+            <input type="text" class="kv-key-search-input" value="${displayKey}" autocomplete="off">
+            <ul class="search-results-list kv-key-results"></ul>
+        </div>
+        <input type="text" class="value-input" value="${value}">
+        <div class="actions">
+            <button type="button" class="save-kv-button action-button" title="Save"><i class="fas fa-check"></i></button>
+        </div>`;
+    const keyInput = li.querySelector('.kv-key-search-input');
+    keyInput.focus();
+    keyInput.select();
 }
 
 async function saveKeyValueRow(li) {
-    const keyInput = li.querySelector('.key-input');
+    const keyInput = li.querySelector('.kv-key-search-input');
     const valueInput = li.querySelector('.value-input');
-    if (!keyInput || !valueInput) return;
+    if (!keyInput || !valueInput) return; // Not in edit mode, nothing to save.
 
-    const key = keyInput.value.trim();
+    const displayKey = keyInput.value.trim();
+    const keySlug = formatStringToId(displayKey);
     const value = valueInput.value.trim();
     const isNewInForm = !li.closest('.object-view');
 
-    if (!key) {
-        cancelEditKeyValueRow(li);
+    if (!keySlug) {
+        // If the key is empty, just cancel the edit, unless it was a new row.
+        if (li.classList.contains('new-kv')) {
+            li.remove();
+        } else {
+            cancelEditKeyValueRow(li);
+        }
         return;
     }
 
     if (isNewInForm) {
         li.classList.remove('kv-edit-mode', 'new-kv');
-        li.innerHTML = `<input type="hidden" name="kv_key" value="${key}"><input type="hidden" name="kv_value" value="${value}">
-                        <span class="key">${key}</span><span class="value">${value}</span><div class="actions"><button type="button" class="edit-kv-button action-button"><i class="fas fa-pencil-alt"></i></button><button type="button" class="delete-kv-button action-button"><i class="fas fa-trash"></i></button></div>`;
+        li.innerHTML = `<input type="hidden" name="kv_key" value="${keySlug}"><input type="hidden" name="kv_value" value="${value}">
+                        <span class="key">${displayKey}</span><span class="value">${value}</span><div class="actions"><button type="button" class="edit-kv-button action-button"><i class="fas fa-pencil-alt"></i></button><button type="button" class="delete-kv-button action-button"><i class="fas fa-trash"></i></button></div>`;
         return;
     }
 
     const { id, table } = li.closest('.object-view').dataset;
     const kvId = li.dataset.kvId;
     try {
-        if (kvId) {
-            await api.patch(`/kv/${kvId}`, { key, value });
-        } else {
-            const newKv = await api.post(`/object/${table}/${id}/kv`, { key, value });
+        if (kvId) { // Existing KV pair
+            await api.patch(`/kv/${kvId}`, { key: keySlug, value });
+        } else { // New KV pair on existing object
+            const newKv = await api.post(`/object/${table}/${id}/kv`, { key: keySlug, value });
             li.dataset.kvId = newKv.id;
         }
         li.classList.remove('kv-edit-mode', 'new-kv');
-        li.innerHTML = `<span class="key">${key}</span><span class="value">${value}</span><div class="actions"><button class="edit-kv-button action-button"><i class="fas fa-pencil-alt"></i></button><button class="delete-kv-button action-button"><i class="fas fa-trash"></i></button></div>`;
+        li.dataset.originalKey = keySlug; // Update the stored slug
+        li.innerHTML = `<span class="key">${displayKey}</span><span class="value">${value}</span><div class="actions"><button class="edit-kv-button action-button"><i class="fas fa-pencil-alt"></i></button><button class="delete-kv-button action-button"><i class="fas fa-trash"></i></button></div>`;
     } catch (e) {
         console.error(e);
         alert(`Error saving detail: ${e.message}`);
@@ -583,18 +742,27 @@ function cancelEditKeyValueRow(li) {
         li.remove();
         return;
     }
+    if (!li.classList.contains('kv-edit-mode')) return;
+
     li.classList.remove('kv-edit-mode');
-    li.innerHTML = `<span class="key">${li.dataset.originalKey}</span><span class="value">${li.dataset.originalValue}</span><div class="actions"><button class="edit-kv-button action-button"><i class="fas fa-pencil-alt"></i></button><button class="delete-kv-button action-button"><i class="fas fa-trash"></i></button></div>`;
+    const originalKey = li.dataset.originalKey;
+    const originalValue = li.dataset.originalValue;
+    li.innerHTML = `<span class="key">${formatIdString(originalKey)}</span><span class="value">${originalValue}</span><div class="actions"><button class="edit-kv-button action-button"><i class="fas fa-pencil-alt"></i></button><button class="delete-kv-button action-button"><i class="fas fa-trash"></i></button></div>`;
 }
 
 async function deleteKeyValueRow(li) {
-    const isNewInForm = !li.dataset.kvId;
+    const isNewInForm = !li.dataset.kvId && li.closest('#add-form');
     if (isNewInForm) {
         li.remove();
         return;
     }
     if (confirm('Are you sure you want to delete this detail?')) {
-        await api.del(`/kv/${li.dataset.kvId}`);
-        li.remove();
+        try {
+            await api.del(`/kv/${li.dataset.kvId}`);
+            li.remove();
+        } catch(e) {
+            console.error(e);
+            alert("Failed to delete detail.");
+        }
     }
 }

@@ -1,5 +1,5 @@
 import * as api from '../api.js';
-import { contentPanel, getIconForTable, formatObjectType, highlightMarker, clearHighlight } from './helpers.js';
+import { contentPanel, getIconForTable, formatIdString, highlightMarker, clearHighlight } from './helpers.js';
 import { renderAddLinkForm } from './forms.js';
 
 let isLoadingMore = false;
@@ -51,12 +51,12 @@ export async function renderListView(type) {
     const addNewButton = document.getElementById('add-new-button');
     const formType = listToFormTypeMap[type] || type;
     addNewButton.dataset.type = formType;
-    addNewButton.querySelector('span').textContent = `Add ${formatObjectType(formType)}`;
+    addNewButton.querySelector('span').textContent = `Add ${formatIdString(formType)}`;
     addNewButton.classList.remove('hidden');
 
     clearHighlight();
 
-    const listTitle = (type === 'recent') ? 'Recent Items' : formatObjectType(type);
+    const listTitle = (type === 'recent') ? 'Recent Items' : formatIdString(type);
     const dashboardSearchHtml = type === 'recent' ? `
         <div class="dashboard-search-container">
             <input type="text" id="dashboard-search-input" placeholder="Search everywhere...">
@@ -72,7 +72,7 @@ export async function renderListView(type) {
         if (types.length > 0) {
             const filterTagsHtml = `
                 <div class="filter-tags-container">
-                    ${types.map(t => `<div class="filter-tag ${activeCustomObjectFilters.has(t) ? 'active' : ''}" data-type="${t}">${formatObjectType(t)}</div>`).join('')}
+                    ${types.map(t => `<div class="filter-tag ${activeCustomObjectFilters.has(t) ? 'active' : ''}" data-type="${t}">${formatIdString(t)}</div>`).join('')}
                 </div>`;
             // Insert filters before the main body container
             body.insertAdjacentHTML('beforebegin', filterTagsHtml);
@@ -170,9 +170,9 @@ function appendItemsToListView(items, type) {
     }
 
     const itemsHtml = items.map(item => {
-        let label = isRecentView ? formatObjectType(item.table) : '';
+        let label = isRecentView ? formatIdString(item.table) : '';
         if (item.table === 'custom_objects' && item.object_type) {
-            label = formatObjectType(item.object_type);
+            label = formatIdString(item.object_type);
         }
 
         let prefix = `<i class="fas ${getIconForTable(item.table)} fa-fw"></i>`;
@@ -252,7 +252,7 @@ export async function renderObject(table, id) {
             const items = groupedLinks[sectionKey];
             if (items.length === 0) return;
 
-            const sectionTitle = formatObjectType(sectionKey);
+            const sectionTitle = formatIdString(sectionKey);
             let sectionContent = '';
 
             if (sectionKey === 'todos') {
@@ -331,8 +331,8 @@ export async function renderObject(table, id) {
             detailsHtml += `<div class="editable note-content-display" data-field="content" data-edit-type="textarea">${object.content || 'Click to add content...'}</div>`;
         }
 
-        const kvHtml = object.key_values.map(kv => `<li data-kv-id="${kv.id}"><span class="key">${kv.key}</span><span class="value">${kv.value}</span><div class="actions"><button class="edit-kv-button action-button"><i class="fas fa-pencil-alt"></i></button><button class="delete-kv-button action-button"><i class="fas fa-trash"></i></button></div></li>`).join('');
-        const objectTypeDisplay = (table === 'custom_objects' && object.object_type) ? `<span class="object-type-display">${formatObjectType(object.object_type)}</span>` : '';
+        const kvHtml = object.key_values.map(kv => `<li data-kv-id="${kv.id}" data-original-key="${kv.key}"><span class="key">${formatIdString(kv.key)}</span><span class="value">${kv.value}</span><div class="actions"><button class="edit-kv-button action-button"><i class="fas fa-pencil-alt"></i></button><button class="delete-kv-button action-button"><i class="fas fa-trash"></i></button></div></li>`).join('');
+        const objectTypeDisplay = (table === 'custom_objects' && object.object_type) ? `<span class="object-type-display">${formatIdString(object.object_type)}</span>` : '';
         const imagePreview = (table === 'images') ? `<img src="${createDataUrl(object.file_path)}" class="image-preview" alt="${object.title}">` : '';
         const downloadLink = (table === 'files') ? `<a href="${createDataUrl(object.file_path)}" download="${object.title}" class="button"><i class="fas fa-download"></i> Download</a>` : '';
 

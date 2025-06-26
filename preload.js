@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 const validChannels = [
     'get:recent', 'get:bootstrap', 'get:custom-object-types', 'get:objects', 'get:object',
+    'get:kv-keys',
     'search:objects',
     'create:object',
     'update:object', 'update:kv',

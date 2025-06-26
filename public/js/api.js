@@ -19,6 +19,10 @@ export async function getCustomObjectTypes() {
     return api.invoke('get:custom-object-types');
 }
 
+export async function getKvKeys() {
+    return api.invoke('get:kv-keys');
+}
+
 export async function createObject(type, formData) {
     const data = Object.fromEntries(formData.entries());
 

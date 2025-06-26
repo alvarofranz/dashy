@@ -215,6 +215,10 @@ export function registerIpcHandlers(dataPath) {
         return db.all('SELECT DISTINCT object_type FROM custom_objects ORDER BY object_type').then(types => types.map(t => t.object_type));
     });
 
+    ipcMain.handle('get:kv-keys', () => {
+        return db.all('SELECT DISTINCT key FROM key_values ORDER BY key').then(keys => keys.map(k => k.key));
+    });
+
     ipcMain.handle('get:objects', async (event, { table, limit = 20, offset = 0, filters = {} }) => {
         let items;
         if (table === 'todos') {

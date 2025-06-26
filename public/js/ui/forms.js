@@ -1,4 +1,4 @@
-import { contentPanel, getIconForTable, formatObjectType, openModal } from './helpers.js';
+import { contentPanel, getIconForTable, formatIdString, openModal } from './helpers.js';
 import * as api from '../api.js';
 import { removeTempMarker } from '../main.js';
 
@@ -67,7 +67,7 @@ export async function renderAddForm(type) {
     if (type !== 'place') removeTempMarker();
 
     const formFieldsHtml = await generateFormFields(type, false);
-    const formTitle = `Add New ${formatObjectType(type)}`;
+    const formTitle = `Add New ${formatIdString(type)}`;
 
     contentPanel.innerHTML = `
         <div class="form-container">
@@ -75,7 +75,7 @@ export async function renderAddForm(type) {
             <form id="add-form" data-type="${type}" autocomplete="off">
                 ${formFieldsHtml}
                 <div class="form-group"><label>Link to Other Items</label>${renderAddLinkForm()}</div>
-                <button type="submit" class="button button-primary"><i class="fas fa-check"></i> Create ${formatObjectType(type)}</button>
+                <button type="submit" class="button button-primary"><i class="fas fa-check"></i> Create ${formatIdString(type)}</button>
             </form>
         </div>`;
 }
@@ -89,7 +89,7 @@ export async function renderOnTheFlyForm(type) {
     const formFields = await generateFormFields(type, true);
     const modalHtml = `
         <div class="modal-header">
-            <h2><i class="fas ${getIconForTable(type)}"></i> Add New ${formatObjectType(type)}</h2>
+            <h2><i class="fas ${getIconForTable(type)}"></i> Add New ${formatIdString(type)}</h2>
             <button class="cancel-modal-btn button button-danger"><i class="fas fa-times"></i> Cancel</button>
         </div>
         <div class="modal-body">

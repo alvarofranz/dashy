@@ -18,8 +18,9 @@ export const getIconForTable = (table) => {
     return icons[table] || 'fa-question-circle';
 };
 
-export const formatObjectType = (type) => {
+export const formatIdString = (type) => {
     if (!type) return '';
+    // This map covers specific overrides and pluralizations
     const specialCases = {
         'custom_objects': 'Custom Objects',
         'files': 'Files',
@@ -35,7 +36,15 @@ export const formatObjectType = (type) => {
     };
     if (specialCases[type]) return specialCases[type];
 
+    // Generic formatter for slug-case to Title Case
     return type.replace(/_/g, ' ').split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+};
+
+export const formatStringToId = (str) => {
+    if (!str) return '';
+    return str.trim().toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '') // remove special characters except spaces and hyphens
+        .replace(/\s+/g, '-'); // replace spaces with hyphens
 };
 
 export const debounce = (func, delay) => {

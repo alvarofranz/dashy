@@ -4,6 +4,9 @@
   "description": "A dashboard to organize your life.",
   "main": "electron-main.js",
   "type": "module",
+  "author": {
+    "name": "Alvaro Franz"
+  },
   "scripts": {
     "start": "electron .",
     "electron:dev": "nodemon --exec \"electron .\"",
@@ -12,27 +15,25 @@
   },
   "engines": {
     "node": "20.3.0",
-    "npm":  "9.6.7"
+    "npm": "9.6.7"
   },
-  "keywords": [ "leaflet", "electron", "sqlite", "sharp" ],
+  "keywords": [
+    "leaflet",
+    "electron",
+    "sqlite",
+    "sharp"
+  ],
   "license": "ISC",
   "dependencies": {
     "axios": "^1.7.2",
     "chokidar": "^3.6.0",
     "compare-versions": "^6.1.0",
     "exif-parser": "^0.1.12",
+    "heic-jpg-exif": "^1.0.0",
     "nanoid": "^5.1.5",
     "sharp": "^0.34.2",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7"
-  },
-  "optionalDependencies": {
-    "@img/sharp-libvips-darwin-arm64": "^1.1.0",
-    "@img/sharp-libvips-darwin-x64":   "^1.1.0",
-    "@img/sharp-libvips-win32-x64":    "^1.1.0",
-    "@img/sharp-libvips-win32-arm64":  "^1.1.0",
-    "@img/sharp-libvips-linux-x64":     "^1.1.0",
-    "@img/sharp-libvips-linuxmusl-x64": "^1.1.0"
   },
   "devDependencies": {
     "electron": "^31.0.1",
@@ -49,7 +50,10 @@
       "public/**/*",
       "node_modules/**/*"
     ],
-    "directories": { "buildResources": "build", "output": "dist" },
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
     "npmRebuild": false,
     "win": {
       "target": "nsis",
@@ -60,7 +64,10 @@
       "icon": "build/icon.png"
     },
     "linux": {
-      "target": [ "AppImage", "deb" ],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "icon": "build/icons",
       "category": "Office"
     }

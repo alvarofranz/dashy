@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs-extra';
 import exifParser from 'exif-parser';
 import sharp from 'sharp';
+import heicJpgExif from 'heic-jpg-exif';
 
 let DATA_PATH;
 
@@ -97,26 +98,42 @@ const getDistance = (lat1, lon1, lat2, lon2) => {
 const processImageFile = async (inputPath, originalFilename) => {
     console.log(`[Image Processing] Starting for: ${originalFilename}`);
     const inputBuffer = fs.readFileSync(inputPath);
-    let gpsCoords = null;
-    let fileDate = new Date();
-    let finalFilename;
-    let title = originalFilename;
+    let finalJpegBuffer;
 
     try {
-        const jpegBuffer = await sharp(inputBuffer)
-            .withMetadata()
-            .jpeg({ quality: 90 })
-            .toBuffer();
-        console.log(`[Image Processing] Successfully converted '${originalFilename}' to JPEG buffer with Sharp.`);
+        const isHeic = ['.heic', '.heif'].includes(path.extname(originalFilename).toLowerCase());
 
-        // This part remains mostly the same as it operates on buffers
-        const parser = exifParser.create(jpegBuffer);
-        const result = parser.parse();
-        // ... (EXIF parsing logic from routes.js) ...
-        if (result.tags && result.tags.DateTimeOriginal) {
-            fileDate = new Date(result.tags.DateTimeOriginal * 1000);
-        } else if (result.tags && result.tags.CreateDate) {
-            let dateStr = result.tags.CreateDate;
+        if (isHeic) {
+            console.log('[Image Processing] HEIC file detected. Converting with heic-jpg-exif...');
+            // This library converts HEIC to a JPEG buffer directly, preserving metadata.
+            finalJpegBuffer = await heicJpgExif(inputBuffer);
+            console.log('[Image Processing] HEIC converted to JPEG successfully.');
+        } else {
+            console.log('[Image Processing] Non-HEIC file. Normalizing with sharp...');
+            // For other formats, we normalize to JPEG, ensuring metadata is kept.
+            finalJpegBuffer = await sharp(inputBuffer)
+                .withMetadata()
+                .jpeg({ quality: 90 })
+                .toBuffer();
+        }
+
+        // Now that we have a standard JPEG buffer, parse it for our app's logic.
+        const parser = exifParser.create(finalJpegBuffer);
+        const parsedExifResult = parser.parse();
+
+        let gpsCoords = null;
+        let fileDate = new Date();
+        let title = originalFilename;
+
+        if (parsedExifResult.tags && parsedExifResult.tags.GPSLatitude && parsedExifResult.tags.GPSLongitude) {
+            gpsCoords = { lat: parsedExifResult.tags.GPSLatitude, lng: parsedExifResult.tags.GPSLongitude };
+            console.log(`[Image Processing] Found GPS data:`, gpsCoords);
+        }
+
+        if (parsedExifResult.tags && parsedExifResult.tags.DateTimeOriginal) {
+            fileDate = new Date(parsedExifResult.tags.DateTimeOriginal * 1000);
+        } else if (parsedExifResult.tags && parsedExifResult.tags.CreateDate) {
+            let dateStr = parsedExifResult.tags.CreateDate;
             let parsedDate;
             if (typeof dateStr === 'string') {
                 const parts = dateStr.split(' ');
@@ -129,25 +146,22 @@ const processImageFile = async (inputPath, originalFilename) => {
             if (parsedDate && !isNaN(parsedDate)) fileDate = parsedDate;
         }
 
-        if (result.tags && result.tags.GPSLatitude && result.tags.GPSLongitude) {
-            gpsCoords = { lat: result.tags.GPSLatitude, lng: result.tags.GPSLongitude };
-        }
-
         const dateString = fileDate.toISOString().slice(0, 10);
         const uniqueId = nanoid(6);
         const finalExtension = '.jpg';
-        if (path.extname(title).toLowerCase() !== finalExtension) {
-            title = `${path.parse(title).name}${finalExtension}`;
-        }
-        finalFilename = `${dateString}-${uniqueId}${finalExtension}`;
+        title = `${path.parse(title).name}${finalExtension}`;
+
+        const finalFilename = `${dateString}-${uniqueId}${finalExtension}`;
         const finalPath = path.join(DATA_PATH, 'images', finalFilename);
         fs.ensureDirSync(path.dirname(finalPath));
-        fs.writeFileSync(finalPath, jpegBuffer);
+
+        fs.writeFileSync(finalPath, finalJpegBuffer);
         console.log(`[Image Processing] Saved final file to: ${finalPath}`);
+
         return { gpsCoords, finalFilename, title };
 
     } catch (err) {
-        console.error(`[Image Processing] Error during Sharp/EXIF processing for ${originalFilename}:`, err.message);
+        console.error(`[Image Processing] CRITICAL ERROR for ${originalFilename}:`, err);
         return null;
     }
 };

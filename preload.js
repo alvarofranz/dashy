@@ -1,7 +1,10 @@
-// MODIFIED: Switched from 'import' to 'require' to conform to preload script context
 const { contextBridge, ipcRenderer } = require('electron');
 
 const validChannels = [
+    // Core App Channels
+    'app:init-check', 'app:set-data-path', 'app:get-settings', 'app:change-data-path',
+    'dialog:open-files', 'shell:open-external', 'shell:open-path', 'shell:show-item-in-folder',
+    // Data Channels
     'get:recent', 'get:bootstrap', 'get:custom-object-types', 'get:objects', 'get:object',
     'get:kv-keys',
     'search:objects',
@@ -10,9 +13,6 @@ const validChannels = [
     'add:kv',
     'delete:kv', 'delete:object',
     'link:objects', 'unlink:objects',
-    'dialog:open-files',
-    'shell:open-external',
-    'check-for-updates'
 ];
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -21,14 +21,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
             return ipcRenderer.invoke(channel, ...args);
         }
         console.error(`Invalid IPC channel used: ${channel}`);
+        return Promise.reject(new Error(`Invalid IPC channel used: ${channel}`));
     },
     on: (channel, callback) => {
         const validReceiveChannels = ['update-available'];
         if (validReceiveChannels.includes(channel)) {
-            // Deliberately strip event as it includes `sender`
             const subscription = (event, ...args) => callback(...args);
             ipcRenderer.on(channel, subscription);
-            // Return a function to remove the listener
             return () => {
                 ipcRenderer.removeListener(channel, subscription);
             };

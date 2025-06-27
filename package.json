@@ -29,11 +29,20 @@
     "chokidar": "^3.6.0",
     "compare-versions": "^6.1.0",
     "exif-parser": "^0.1.12",
+    "fs-extra": "^11.3.0",
     "heic-jpg-exif": "^1.0.0",
     "nanoid": "^5.1.5",
     "sharp": "^0.34.2",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7"
+  },
+  "optionalDependencies": {
+    "@img/sharp-libvips-darwin-arm64": "^1.1.0",
+    "@img/sharp-libvips-darwin-x64": "^1.1.0",
+    "@img/sharp-libvips-linux-x64": "^1.1.0",
+    "@img/sharp-libvips-linuxmusl-x64": "^1.1.0",
+    "@img/sharp-libvips-win32-arm64": "^1.1.0",
+    "@img/sharp-libvips-win32-x64": "^1.1.0"
   },
   "devDependencies": {
     "electron": "^31.0.1",
@@ -49,6 +58,11 @@
       "app/**/*",
       "public/**/*",
       "node_modules/**/*"
+    ],
+    "asarUnpack": [
+      "**/node_modules/sharp/**",
+      "**/node_modules/@img/**",
+      "**/node_modules/sqlite3/**"
     ],
     "directories": {
       "buildResources": "build",

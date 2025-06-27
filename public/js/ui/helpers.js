@@ -3,6 +3,7 @@ import { removeTempMarker } from '../main.js';
 export const contentPanel = document.getElementById('app-panel-content');
 export const modalOverlay = document.getElementById('modal-overlay');
 export const modalContent = document.getElementById('modal-content');
+export const onboardingModalOverlay = document.getElementById('onboarding-modal-overlay');
 
 export const getIconForTable = (table) => {
     const icons = {
@@ -13,38 +14,30 @@ export const getIconForTable = (table) => {
         images: 'fa-image',
         files: 'fa-file-alt',
         todos: 'fa-check-square',
-        dashboard: 'fa-home'
+        dashboard: 'fa-home',
+        settings: 'fa-cog'
     };
     return icons[table] || 'fa-question-circle';
 };
 
 export const formatIdString = (type) => {
     if (!type) return '';
-    // This map covers specific overrides and pluralizations
     const specialCases = {
-        'custom_objects': 'Custom Objects',
-        'files': 'Files',
-        'place': 'Place',
-        'person': 'Person',
-        'note': 'Note',
-        'notes': 'Notes',
-        'image': 'Image',
-        'other_file': 'File',
-        'custom_object': 'Custom Object',
-        'todos': 'To-Dos',
-        'todo': 'To-Do'
+        'custom_objects': 'Custom Objects', 'files': 'Files', 'place': 'Place',
+        'person': 'Person', 'note': 'Note', 'notes': 'Notes', 'image': 'Image',
+        'other_file': 'File', 'custom_object': 'Custom Object', 'todos': 'To-Dos',
+        'todo': 'To-Do', 'settings': 'Settings'
     };
     if (specialCases[type]) return specialCases[type];
 
-    // Generic formatter for slug-case to Title Case
     return type.replace(/_/g, ' ').split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 };
 
 export const formatStringToId = (str) => {
     if (!str) return '';
     return str.trim().toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '') // remove special characters except spaces and hyphens
-        .replace(/\s+/g, '-'); // replace spaces with hyphens
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-');
 };
 
 export const debounce = (func, delay) => {
@@ -76,4 +69,14 @@ export function closeModal() {
     modalContent.innerHTML = '';
     window.dashy.appState.isModalOpen = false;
     removeTempMarker();
+}
+
+export function openOnboardingModal(htmlContent) {
+    onboardingModalOverlay.innerHTML = htmlContent;
+    onboardingModalOverlay.classList.remove('hidden');
+}
+
+export function closeOnboardingModal() {
+    onboardingModalOverlay.classList.add('hidden');
+    onboardingModalOverlay.innerHTML = '';
 }

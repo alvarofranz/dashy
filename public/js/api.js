@@ -1,5 +1,35 @@
 const api = window.electronAPI;
 
+// --- Core App API ---
+export async function checkInitStatus() {
+    return api.invoke('app:init-check');
+}
+
+export async function setDataPath(path) {
+    return api.invoke('app:set-data-path', path);
+}
+
+export async function getSettings() {
+    return api.invoke('app:get-settings');
+}
+
+export async function changeDataPath() {
+    return api.invoke('app:change-data-path');
+}
+
+export async function selectFiles(options) {
+    return api.invoke('dialog:open-files', options);
+}
+
+export async function openDataPath() {
+    return api.invoke('shell:open-path');
+}
+
+export async function showItemInFolder(filePath) {
+    return api.invoke('shell:show-item-in-folder', filePath);
+}
+
+// --- Data API ---
 export async function getBootstrapData() {
     return api.invoke('get:bootstrap');
 }
@@ -26,7 +56,6 @@ export async function getKvKeys() {
 export async function createObject(type, formData) {
     const data = Object.fromEntries(formData.entries());
 
-    // Handle multi-key for key_values from the form
     const kvKeys = formData.getAll('kv_key');
     const kvValues = formData.getAll('kv_value');
     if (kvKeys.length > 0) {
@@ -38,15 +67,12 @@ export async function createObject(type, formData) {
         delete data.kv_value;
     }
 
-    // MODIFIED: This is the fix.
-    // We check if filePaths exists and is a string. If so, we parse it
-    // from a JSON string back into a proper array before sending it to the main process.
     if (data.filePaths && typeof data.filePaths === 'string') {
         try {
             data.filePaths = JSON.parse(data.filePaths);
         } catch (e) {
             console.error("Failed to parse filePaths JSON string:", e);
-            data.filePaths = []; // Default to empty array on error
+            data.filePaths = [];
         }
     }
 
@@ -72,8 +98,6 @@ export async function unlinkObjects(source, target) {
 export async function deleteObject(table, id) {
     return api.invoke('delete:object', { table, id });
 }
-
-// --- New/Modified specific to Electron ---
 
 export async function post(path, data) {
     const channelMap = {
@@ -113,9 +137,4 @@ export async function del(path) {
         return api.invoke('delete:kv', { id });
     }
     throw new Error(`Unknown API DELETE path: ${path}`);
-}
-
-
-export async function selectFiles(options) {
-    return api.invoke('dialog:open-files', options);
 }

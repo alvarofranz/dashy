@@ -1,8 +1,8 @@
 import { Map, TileLayer, Marker, Icon, DomEvent } from 'leaflet';
 import * as api from './api.js';
 import { initializeEventListeners } from './ui/events.js';
-import { renderObject, renderDashboardView, renderWelcomeMessage } from './ui/main_view.js';
-import { highlightMarker, clearHighlight } from './ui/helpers.js';
+import { renderObject, renderDashboardView, renderOnboardingModal } from './ui/main_view.js';
+import { highlightMarker, clearHighlight, closeOnboardingModal } from './ui/helpers.js';
 
 const appState = {
     map: null,
@@ -59,14 +59,16 @@ async function bootstrapApp() {
     try {
         const data = await api.getBootstrapData();
         if(data && data.places) data.places.forEach(place => addMarkerToMap(place));
-        if (data && data.hasObjects) {
-            renderDashboardView();
-        } else {
-            renderWelcomeMessage();
-        }
+
+        closeOnboardingModal();
+
+        // Always render the dashboard view after setup is complete.
+        // The dashboard itself will handle its "empty state".
+        renderDashboardView();
+
     } catch (error) {
         console.error("Could not bootstrap the app:", error);
-        renderWelcomeMessage();
+        contentPanel.innerHTML = `<p>Error bootstrapping application.</p>`;
     }
 }
 
@@ -97,9 +99,8 @@ function removeMarkerFromMap(placeId) {
 // --- Update Notification ---
 function showUpdateNotification(updateInfo) {
     let container = document.getElementById('update-notification-banner');
-    if (container) {
-        container.remove();
-    }
+    if (container) container.remove();
+
     container = document.createElement('div');
     container.id = 'update-notification-banner';
     container.style.cssText = 'position: fixed; top: 10px; right: 10px; background-color: var(--accent-secondary); color: white; padding: 15px; border-radius: var(--radius-md); z-index: 9999; box-shadow: var(--shadow-lg); max-width: 350px;';
@@ -127,10 +128,10 @@ function showUpdateNotification(updateInfo) {
 
 
 // --- App Start ---
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     initMap();
     initializeEventListeners();
-    bootstrapApp();
+
     window.dashy = {
         appState,
         api,
@@ -140,13 +141,26 @@ document.addEventListener('DOMContentLoaded', () => {
         renderObject,
         renderDashboardView
     };
-    document.getElementById('app-title').addEventListener('click', renderDashboardView);
-    document.querySelector('.nav-btn[data-type="dashboard"]').classList.add('active');
 
-    // Listen for update notifications from the main process
+    document.getElementById('app-title').addEventListener('click', () => {
+        if (document.getElementById('onboarding-modal-overlay').classList.contains('hidden')) {
+            renderDashboardView();
+        }
+    });
+
+    try {
+        const { configured } = await api.checkInitStatus();
+        if (configured) {
+            bootstrapApp();
+        } else {
+            renderOnboardingModal();
+        }
+    } catch (error) {
+        console.error("Fatal error during initialization:", error);
+        document.body.innerHTML = `<div style="color:white; text-align:center; padding-top: 50px;"><h1>A fatal error occurred</h1><p>${error.message}</p></div>`;
+    }
+
     if (window.electronAPI) {
-        window.electronAPI.on('update-available', (updateInfo) => {
-            showUpdateNotification(updateInfo);
-        });
+        window.electronAPI.on('update-available', showUpdateNotification);
     }
 });

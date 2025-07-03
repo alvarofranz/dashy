@@ -4,6 +4,7 @@ const validChannels = [
     // Core App Channels
     'app:init-check', 'app:set-data-path', 'app:get-settings', 'app:change-data-path',
     'dialog:open-files', 'shell:open-external', 'shell:open-path', 'shell:show-item-in-folder',
+    'app:quit-and-install',
     // Data Channels
     'get:recent', 'get:bootstrap', 'get:custom-object-types', 'get:objects', 'get:object',
     'get:kv-keys',
@@ -24,7 +25,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return Promise.reject(new Error(`Invalid IPC channel used: ${channel}`));
     },
     on: (channel, callback) => {
-        const validReceiveChannels = ['update-available'];
+        const validReceiveChannels = ['update-downloaded'];
         if (validReceiveChannels.includes(channel)) {
             const subscription = (event, ...args) => callback(...args);
             ipcRenderer.on(channel, subscription);

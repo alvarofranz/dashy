@@ -23,50 +23,49 @@ const listToFormTypeMap = {
     todos: 'todo'
 };
 
-// MODIFIED: Added more informative slides for each object type.
 export function renderOnboardingModal() {
     const modalHtml = `
     <div id="onboarding-modal">
         <div class="onboarding-slides-container">
             <div class="onboarding-slide">
                 <i class="fas fa-spaghetti-monster-flying"></i>
-                <h2>Welcome to Dashy</h2>
-                <p>Your personal life, organized and interconnected. Let's get you set up.</p>
+                <h2>Welcome to Dashy!</h2>
+                <p>Ready to map out your life? Let's get your personal universe organized and connected. It's gonna be fun!</p>
             </div>
             <div class="onboarding-slide">
                 <i class="fas fa-map-marked-alt"></i>
-                <h2>Places on the Map</h2>
-                <p>Every place you add, from a favorite cafe to a travel destination, appears as a marker on your personal map.</p>
+                <h2>Everything Starts with the Map</h2>
+                <p>Think of it as your digital canvas. Every important spot—your home, your favorite hangout, that epic vacation spot—gets a pin.</p>
             </div>
             <div class="onboarding-slide">
                 <i class="fas fa-users"></i>
-                <h2>Remember People</h2>
-                <p>Keep track of friends, family, and colleagues. Link them to shared memories, places, and photos.</p>
+                <h2>Who's In Your Orbit?</h2>
+                <p>Add friends, family, or that barista who knows your order by heart. You can link them to places you've been and memories you've made together.</p>
             </div>
             <div class="onboarding-slide">
                 <i class="fas fa-check-double"></i>
-                <h2>Notes & To-Dos</h2>
-                <p>Jot down thoughts with Notes and manage your tasks with To-Dos. Incomplete tasks stay pinned so you never lose track.</p>
+                <h2>Ideas & Tasks, Sorted</h2>
+                <p>Got a brilliant idea? Jot it down in a Note. Need to get stuff done? Create a To-Do. We'll even pin your incomplete tasks so you can't ignore them. 😉</p>
             </div>
             <div class="onboarding-slide">
                 <i class="fas fa-camera-retro"></i>
                 <h2>Intelligent Images & Files</h2>
-                <p>Upload photos and files. Images with GPS data are automatically linked to places on your map.</p>
+                <p>A picture is worth a thousand links. Drop in your photos, and if they have GPS data, we'll magically place them on the map for you. Your files are welcome too!</p>
             </div>
             <div class="onboarding-slide">
                 <i class="fas fa-shapes"></i>
-                <h2>Create Custom Objects</h2>
-                <p>Define your own object types. Track your favorite books, movies, recipes, or anything else you can imagine.</p>
+                <h2>Track... Anything!</h2>
+                <p>Don't let us box you in. Create your own 'things' to track. Your movie watchlist, favorite recipes, D&D characters... if you can name it, you can track it.</p>
             </div>
              <div class="onboarding-slide">
                 <i class="fas fa-sitemap"></i>
-                <h2>The Power of Linking</h2>
-                <p>The core of Dashy is connecting everything. Link a person to a photo, a photo to a place, a place to a note—build a web of your life.</p>
+                <h2>The Magic of Linking</h2>
+                <p>This is where it all comes together. Connect anything to anything. A photo of a friend at a place you love with a note about what happened that day. See how it all connects?</p>
             </div>
             <div class="onboarding-slide">
                 <i class="fas fa-folder-open"></i>
-                <h2>Local & Safe Data</h2>
-                <p>Your data is stored locally and privately on your computer. You are in control. Please select a folder to store your Dashy data.</p>
+                <h2>Your World, Your Data</h2>
+                <p>It all lives privately on your machine. To kick things off, just pick a cozy spot on your computer for Dashy to call home.</p>
                 <button id="onboarding-select-folder" class="button button-primary"><i class="fas fa-folder-plus"></i> Select Folder & Start</button>
             </div>
         </div>
@@ -130,27 +129,15 @@ export async function renderListView(type) {
     await loadFilteredItems(type);
 }
 
-// MODIFIED: Updated the settings view layout.
 export async function renderSettingsView() {
     window.dashy.appState.currentView = { type: 'settings' };
     contentPanel.innerHTML = `<div class="loader">Loading...</div>`;
 
     const settings = await api.getSettings();
 
-    let updateHtml = '';
-    if (settings.updateInfo) {
-        updateHtml = `
-        <div class="update-info-container">
-            <h4><i class="fas fa-bell"></i> Update Available!</h4>
-            <p>Version ${settings.updateInfo.version} is ready. ${settings.updateInfo.releaseNotes || ''}</p>
-            <button id="settings-download-update-btn" data-url="${settings.updateInfo.url}" class="button" style="margin-top: 1rem; border-color: white; color: white;">Download Now</button>
-        </div>`;
-    }
-
     const settingsHtml = `
         <div class="settings-view">
             <h2><i class="fas fa-cog"></i> Settings</h2>
-            ${updateHtml}
             <div class="section">
                 <div class="setting-item">
                     <div class="setting-label">
@@ -410,7 +397,6 @@ export async function renderObject(table, id) {
         const objectTypeDisplay = (table === 'custom_objects' && object.object_type) ? `<span class="object-type-display">${formatIdString(object.object_type)}</span>` : '';
         const imagePreview = (table === 'images') ? `<img src="${createDataUrl(object.file_path)}" class="image-preview" alt="${object.title}">` : '';
 
-        // MODIFIED: Added "Show in folder" button and separated file-related actions.
         let fileActionsHtml = '';
         if (table === 'files') {
             fileActionsHtml += `<a href="${createDataUrl(object.file_path)}" download="${object.title}" class="button"><i class="fas fa-download"></i> Download</a>`;
@@ -424,7 +410,6 @@ export async function renderObject(table, id) {
             <button class="delete-object-btn button button-danger" title="Delete Object"><i class="fas fa-trash"></i></button>
         </div>`;
 
-        // MODIFIED: Added data-file-path attribute for the event handler to use.
         contentPanel.innerHTML = `
             <div class="object-view" data-id="${id}" data-table="${table}" data-file-path="${object.file_path || ''}">
                 <div class="object-view-header">

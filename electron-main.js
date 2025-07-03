@@ -3,12 +3,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs-extra';
 import chokidar from 'chokidar';
-import axios from 'axios';
-import { compareVersions } from 'compare-versions';
+import electronUpdater from 'electron-updater';
 import { initDatabase, getDb, closeDb } from './app/database.js';
 import { registerIpcHandlers } from './app/ipc-handlers.js';
 import { runMigrations } from './app/migrations.js';
 
+const { autoUpdater } = electronUpdater;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const isDev = !app.isPackaged;
@@ -18,7 +18,6 @@ app.commandLine.appendSwitch('disable-features', 'Autofill,AutofillCreditCard');
 let mainWindow;
 let dataPath;
 let configPath = path.join(app.getPath('userData'), 'config.json');
-let latestUpdateInfo = null;
 let isDataPathInitialized = false;
 
 // --- Data Path Management ---
@@ -60,6 +59,9 @@ async function createWindow() {
     // Show window when it's ready to avoid flash of unstyled content
     mainWindow.once('ready-to-show', () => {
         mainWindow.show();
+        // Once the window is ready, check for updates
+        // This is non-blocking and will happen in the background
+        autoUpdater.checkForUpdates();
     });
 
     if (isDev) {
@@ -112,7 +114,26 @@ function createMenu() {
             submenu: [
                 {
                     label: 'Check for Updates...',
-                    click: () => checkForUpdates(true) // Pass true for manual check
+                    click: () => {
+                        autoUpdater.once('update-not-available', (info) => {
+                            dialog.showMessageBox({
+                                type: 'info',
+                                title: 'No Updates',
+                                message: `You are running the latest version of Dashy (${app.getVersion()}).`
+                            });
+                        });
+                        autoUpdater.once('update-available', (info) => {
+                            dialog.showMessageBox({
+                                type: 'info',
+                                title: 'Update Found',
+                                message: `Version ${info.version} is available and will be downloaded in the background.`
+                            });
+                        });
+                        autoUpdater.once('error', (err) => {
+                            dialog.showErrorBox('Update Check Failed', `Could not connect to the update server. Please check your internet connection and try again.\n\n${err.message}`);
+                        });
+                        autoUpdater.checkForUpdates();
+                    }
                 },
                 {
                     label: 'Learn More',
@@ -143,35 +164,6 @@ function createMenu() {
     Menu.setApplicationMenu(menu);
 }
 
-// --- Update Checker ---
-async function checkForUpdates(manual = false) {
-    try {
-        const response = await axios.get('https://raw.githubusercontent.com/alvarofranz/dashy/refs/heads/main/version.json');
-        const latestVersion = response.data;
-        const currentVersion = app.getVersion();
-
-        if (compareVersions(latestVersion.version, currentVersion) > 0) {
-            latestUpdateInfo = latestVersion;
-            mainWindow.webContents.send('update-available', latestVersion);
-        } else {
-            latestUpdateInfo = null;
-            if (manual) {
-                dialog.showMessageBox({
-                    type: 'info',
-                    title: 'No Updates',
-                    message: `You are currently running the latest version of Dashy (${currentVersion}).`
-                });
-            }
-        }
-    } catch (error) {
-        console.error('Failed to check for updates:', error.message);
-        latestUpdateInfo = null;
-        if (manual) {
-            dialog.showErrorBox('Update Check Failed', 'Could not connect to the server to check for updates. Please check your internet connection.');
-        }
-    }
-}
-
 // --- Core IPC Handlers ---
 function registerCoreIpcHandlers() {
     ipcMain.handle('app:init-check', async () => {
@@ -184,8 +176,6 @@ function registerCoreIpcHandlers() {
                 await runMigrations();
                 registerIpcHandlers(dataPath);
                 isDataPathInitialized = true;
-
-                setTimeout(() => checkForUpdates(false), 5000);
 
                 return { configured: true };
             } catch (err) {
@@ -215,7 +205,6 @@ function registerCoreIpcHandlers() {
     ipcMain.handle('app:get-settings', () => ({
         dataPath: dataPath,
         appVersion: app.getVersion(),
-        updateInfo: latestUpdateInfo,
     }));
 
     ipcMain.handle('app:change-data-path', async () => {
@@ -286,6 +275,10 @@ function registerCoreIpcHandlers() {
             shell.showItemInFolder(absolutePath);
         }
     });
+
+    ipcMain.handle('app:quit-and-install', () => {
+        autoUpdater.quitAndInstall();
+    });
 }
 
 // --- App Lifecycle ---
@@ -314,5 +307,32 @@ app.on('will-quit', async () => {
 app.on('activate', () => {
     if (mainWindow === null) {
         createWindow();
+    }
+});
+
+// --- AutoUpdater Event Listeners ---
+autoUpdater.on('update-available', (info) => {
+    console.log('[AutoUpdater] Update available:', info);
+});
+
+autoUpdater.on('update-not-available', (info) => {
+    console.log('[AutoUpdater] Update not available.', info);
+});
+
+autoUpdater.on('error', (err) => {
+    console.error('[AutoUpdater] Error in auto-updater. ' + err);
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+    let log_message = "Download speed: " + Math.round(progressObj.bytesPerSecond / 1024) + " KB/s";
+    log_message = log_message + ' - Downloaded ' + Math.round(progressObj.percent) + '%';
+    log_message = log_message + ' (' + Math.round(progressObj.transferred / (1024*1024)) + "/" + Math.round(progressObj.total/ (1024*1024)) + ' MB)';
+    console.log(`[AutoUpdater] ${log_message}`);
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+    console.log('[AutoUpdater] Update downloaded:', info);
+    if(mainWindow) {
+        mainWindow.webContents.send('update-downloaded', info);
     }
 });

@@ -29,6 +29,10 @@ export async function showItemInFolder(filePath) {
     return api.invoke('shell:show-item-in-folder', filePath);
 }
 
+export async function quitAndInstall() {
+    return api.invoke('app:quit-and-install');
+}
+
 // --- Data API ---
 export async function getBootstrapData() {
     return api.invoke('get:bootstrap');

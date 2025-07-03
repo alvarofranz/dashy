@@ -97,32 +97,26 @@ function removeMarkerFromMap(placeId) {
 }
 
 // --- Update Notification ---
-function showUpdateNotification(updateInfo) {
+function showUpdateDownloadedBanner(updateInfo) {
     let container = document.getElementById('update-notification-banner');
     if (container) container.remove();
 
     container = document.createElement('div');
     container.id = 'update-notification-banner';
-    container.style.cssText = 'position: fixed; top: 10px; right: 10px; background-color: var(--accent-secondary); color: white; padding: 15px; border-radius: var(--radius-md); z-index: 9999; box-shadow: var(--shadow-lg); max-width: 350px;';
+    container.style.cssText = 'position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background-color: var(--accent-secondary); color: white; padding: 15px; border-radius: var(--radius-md); z-index: 9999; box-shadow: var(--shadow-lg); max-width: 450px; text-align: center;';
 
-    const releaseNotesHtml = updateInfo.releaseNotes ? `<p style="margin: 5px 0 15px; font-size: 0.9em; opacity: 0.9;">${updateInfo.releaseNotes}</p>` : '';
+    const releaseNotesHtml = updateInfo.releaseNotes ? `<p style="margin: 5px 0 15px; font-size: 0.9em; opacity: 0.9;">${updateInfo.releaseNotes.replace(/\r\n/g, '<br>')}</p>` : '';
 
     container.innerHTML = `
-        <h4 style="margin: 0 0 5px; font-weight: 600;">Update Available!</h4>
-        <p style="margin:0;">Version ${updateInfo.version} is ready to download.</p>
+        <h4 style="margin: 0 0 5px; font-weight: 600;">Update Ready to Install</h4>
+        <p style="margin:0;">Version ${updateInfo.version} has been downloaded.</p>
         ${releaseNotesHtml}
-        <button id="download-update-btn" class="button button-primary" style="margin-right: 10px;">Download</button>
-        <button id="dismiss-update-btn" class="button" style="background:none; border: 1px solid white;">Dismiss</button>
+        <button id="restart-and-install-btn" class="button button-primary" style="margin-top: 10px;">Restart and Install Now</button>
     `;
     document.body.appendChild(container);
 
-    document.getElementById('download-update-btn').addEventListener('click', () => {
-        window.electronAPI.invoke('shell:open-external', updateInfo.url);
-        container.remove();
-    });
-
-    document.getElementById('dismiss-update-btn').addEventListener('click', () => {
-        container.remove();
+    document.getElementById('restart-and-install-btn').addEventListener('click', () => {
+        api.quitAndInstall();
     });
 }
 
@@ -161,6 +155,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     if (window.electronAPI) {
-        window.electronAPI.on('update-available', showUpdateNotification);
+        window.electronAPI.on('update-downloaded', showUpdateDownloadedBanner);
     }
 });
